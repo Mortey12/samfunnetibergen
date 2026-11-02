@@ -125,6 +125,7 @@ export async function buildEventDetail(
     dailyClicks,
     duration,
     referrers,
+    entrySurfaces,
     devices,
     perId,
     perIdClicks,
@@ -165,6 +166,12 @@ export async function buildEventDetail(
          FROM events WHERE ${viewed}
          GROUP BY domain ORDER BY views DESC LIMIT 200`,
       "detail-referrers",
+    ),
+    runHogQL<{ surface: string | null; views: number }>(
+      `SELECT properties.entry_surface AS surface, count() AS views
+         FROM events WHERE ${viewed}
+         GROUP BY surface`,
+      "detail-traffic-entry-surfaces",
     ),
     runHogQL<{ device: string | null; views: number }>(
       `SELECT properties.$device_type AS device, count() AS views
@@ -434,6 +441,15 @@ export async function buildEventDetail(
       facebook: toCount(dailyClickRows.get(day)?.facebook),
     })),
     channels: ranked(channels, TRAFFIC_CHANNELS.length),
+    entrySurfaces: ranked(
+      entrySurfaces.reduce((byName, row) => {
+        const name = row.surface
+          ? (SURFACE_NAMES[row.surface] ?? "Annen registrert plassering")
+          : "Ikke registrert"
+        return byName.set(name, (byName.get(name) ?? 0) + toCount(row.views))
+      }, new Map<string, number>()),
+      8,
+    ),
     sites: ranked(sites, 8),
     devices: ranked(
       devices.reduce((byName, row) => {
