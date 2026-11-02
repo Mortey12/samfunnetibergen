@@ -42,6 +42,8 @@ do not run a full build-and-test cycle by habit.
 
 - `.agents/skills/samfunnetibergen-production-release/`: release the website to
   production through GitHub Actions, Vercel staging, smoke tests, and promotion.
+- `.agents/skills/convert-event-to-festival/`: turn an existing event into a
+  festival parent and add the host's own concerts as festival sessions.
 - `.agents/skills/react-doctor/`: optional React health scan.
 
 Add new skills under `.agents/skills/<name>/SKILL.md` with a clear
