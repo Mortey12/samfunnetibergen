@@ -5,7 +5,11 @@ import {
   type RawPublicEvent,
   resolvePublicEvent,
 } from "./events"
-import { rankSimilarEvents, similarityScore } from "./similar-events"
+import {
+  rankSimilarEvents,
+  type SimilarEvent,
+  similarityScore,
+} from "./similar-events"
 
 const TODAY = "2026-11-02"
 
@@ -31,7 +35,8 @@ function event(
   })
 }
 
-const ids = (events: PublicEvent[]) => events.map(candidate => candidate._id)
+const ids = (similar: SimilarEvent[]) =>
+  similar.map(candidate => candidate.event._id)
 
 /** Ranks without the random exploration slot. */
 const rank = (shown: PublicEvent, candidates: PublicEvent[]) =>
@@ -207,7 +212,13 @@ describe("rankSimilarEvents", () => {
     const random = () => draws.shift() ?? 0
 
     expect(
-      ids(rankSimilarEvents(shown, candidates, TODAY, { random })),
-    ).toEqual(["best", "second", "random-b"])
+      rankSimilarEvents(shown, candidates, TODAY, { random }).map(
+        ({ event, pick }) => [event._id, pick],
+      ),
+    ).toEqual([
+      ["best", "ranked"],
+      ["second", "ranked"],
+      ["random-b", "random"],
+    ])
   })
 })

@@ -13,6 +13,7 @@ export const BATCHED_SURFACES = new Set([
   "home-upcoming",
   "events-list",
   "calendar",
+  "detail-similar",
 ])
 const BATCH_DELAY_MS = 3000
 
@@ -48,6 +49,7 @@ export function observeEventPlacements(
       const cards = [...elements.values()]
       if (!cards.length) continue
       const { placement_name } = placementProperties(cards[0], locale)
+      const picks = cards.map(card => card.dataset.eventPick ?? null)
       capture("event_placements_seen", {
         surface,
         placement_name,
@@ -55,6 +57,7 @@ export function observeEventPlacements(
         event_document_ids: cards.map(card => card.dataset.eventDocumentId),
         event_ids: cards.map(card => card.dataset.eventId),
         count: cards.length,
+        ...(picks.some(Boolean) ? { event_picks: picks } : {}),
         tracking_version: 1,
       })
     }

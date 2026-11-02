@@ -34,6 +34,7 @@ export function eventTrackingAttributes(
   surface: string,
   position?: number,
   occurrenceDate?: string,
+  pick?: "ranked" | "random",
 ) {
   return {
     "data-event-id": event.initialSlug ?? event.slug,
@@ -50,6 +51,7 @@ export function eventTrackingAttributes(
       ? (event.promotedOrder ?? undefined)
       : undefined,
     "data-event-occurrence-date": occurrenceDate,
+    "data-event-pick": pick,
     "data-event-placement-id": `${surface}:${event._id}:${occurrenceDate ?? ""}:${position ?? ""}`,
   } as const
 }

@@ -44,6 +44,7 @@ export function placementProperties(element: HTMLElement, locale: string) {
       ? Number(element.dataset.eventPromotionOrder)
       : null,
     occurrence_date: element.dataset.eventOccurrenceDate || null,
+    placement_pick: element.dataset.eventPick ?? null,
     placement_id: element.dataset.eventPlacementId,
     tracking_version: 2,
   }

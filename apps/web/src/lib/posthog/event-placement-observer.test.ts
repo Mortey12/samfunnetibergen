@@ -213,4 +213,28 @@ describe("event placement observation", () => {
     expect(s.observe).toHaveBeenCalledTimes(2)
     s.cleanup()
   })
+  it("logs whether similar-event cards were ranked or random picks", () => {
+    const s = setup()
+    s.element.dataset.eventPromoted = "false"
+    s.element.dataset.eventSurface = "detail-similar"
+    Object.assign(s.element.dataset, { eventPick: "random" })
+    s.visible(1)
+    vi.advanceTimersByTime(4000)
+    expect(s.capture).toHaveBeenCalledWith(
+      "event_placements_seen",
+      expect.objectContaining({
+        surface: "detail-similar",
+        event_picks: ["random"],
+      }),
+    )
+    s.emit("click", { target: s.element, button: 0, detail: 1, type: "click" })
+    expect(s.capture).toHaveBeenCalledWith(
+      "event_placement_clicked",
+      expect.objectContaining({
+        surface: "detail-similar",
+        placement_pick: "random",
+      }),
+    )
+    s.cleanup()
+  })
 })

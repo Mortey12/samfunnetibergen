@@ -23,8 +23,16 @@ using local storage, with an in-memory fallback if storage is unavailable.
 `content_page_viewed` preserves existing event-detail traffic. Their event-time
 promotion state, timestamp and readable event ID connect them to campaign periods
 in PostHog. Surfaces distinguish `home-promoted`, `home-upcoming`, `events-list`,
-`calendar`, `detail-parent` and `detail-child`. These are product events through
-the existing SDK; they do not belong in operational Logs.
+`calendar`, `detail-parent`, `detail-child` and `detail-similar`. These are
+product events through the existing SDK; they do not belong in operational Logs.
+
+`detail-similar` is the "Du er kanskje også interessert i" section on event
+pages. It is a batched surface, so every card seen counts in
+`event_placements_seen`. Some cards there are random picks for exploration
+rather than ranked matches: clicks carry `placement_pick` (`ranked` or
+`random`), and the seen batch carries `event_picks`, one value per entry in
+`event_document_ids`. Compare clicks per seen card by pick to see whether
+random picks earn their slot.
 
 Browser analytics exclude all Vercel deployment domains and infoskjerm pages.
 Generic click autocapture is disabled; explicit domain events, page views,

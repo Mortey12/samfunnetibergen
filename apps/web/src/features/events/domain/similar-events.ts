@@ -20,6 +20,14 @@ export const SIMILARITY_WEIGHTS = {
 /** Candidates must score above this, or they only fill open slots. */
 const STRONG_MATCH_SCORE = 3
 
+/** How a card got its slot; logged so random picks can be measured apart. */
+export type SimilarEventPick = "ranked" | "random"
+
+export type SimilarEvent = {
+  event: PublicEvent
+  pick: SimilarEventPick
+}
+
 type ScoredCandidate = {
   event: PublicEvent
   score: number
@@ -38,7 +46,7 @@ export function rankSimilarEvents(
   candidates: readonly PublicEvent[],
   today: string,
   { random = Math.random }: { random?: () => number } = {},
-): PublicEvent[] {
+): SimilarEvent[] {
   if (event.eventKind === "festivalParent") return []
 
   const until = addDays(today, SIMILAR_EVENT_WINDOW_DAYS)
@@ -86,36 +94,36 @@ export function rankSimilarEvents(
       .sort(bySoonest),
   ].map(candidate => candidate.event)
 
-  const picked: PublicEvent[] = []
+  const picked: SimilarEvent[] = []
   const seenParents = new Set<string>()
   const seenOrganizers = new Set<string>()
   const fits = (candidate: PublicEvent) => {
     const parentId = candidate.parentEvent?._id
     const organizerId = candidate.organizerGroup?._id
     return (
-      !picked.includes(candidate) &&
+      !picked.some(similar => similar.event === candidate) &&
       !(parentId && seenParents.has(parentId)) &&
       !(organizerId && seenOrganizers.has(organizerId))
     )
   }
-  const pick = (candidate: PublicEvent) => {
+  const add = (candidate: PublicEvent, pick: SimilarEventPick) => {
     const parentId = candidate.parentEvent?._id
     const organizerId = candidate.organizerGroup?._id
     if (parentId) seenParents.add(parentId)
     if (organizerId) seenOrganizers.add(organizerId)
-    picked.push(candidate)
+    picked.push({ event: candidate, pick })
   }
 
   const explore = random() < EXPLORATION_CHANCE
   const rankedSlots = explore ? SIMILAR_EVENT_COUNT - 1 : SIMILAR_EVENT_COUNT
   for (const candidate of ranked) {
     if (picked.length === rankedSlots) break
-    if (fits(candidate)) pick(candidate)
+    if (fits(candidate)) add(candidate, "ranked")
   }
   if (explore) {
     const open = ranked.filter(fits)
     const wildcard = open[Math.floor(random() * open.length)]
-    if (wildcard) pick(wildcard)
+    if (wildcard) add(wildcard, "random")
   }
   return picked
 }

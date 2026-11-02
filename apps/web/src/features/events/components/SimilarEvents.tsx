@@ -52,12 +52,13 @@ export async function SimilarEvents({
         </Link>
       </div>
       <ul className="grid gap-x-6 gap-y-10 md:grid-cols-2 xl:grid-cols-3 xl:gap-x-8">
-        {similarEvents.map((similarEvent, index) => (
+        {similarEvents.map(({ event: similarEvent, pick }, index) => (
           <li key={similarEvent._id} className="min-w-0">
             <EventCard
               variant="catalogue"
               trackingSurface="detail-similar"
               trackingPosition={index + 1}
+              trackingPick={pick}
               event={{
                 ...similarEvent,
                 ...buildCardDateLabels(similarEvent, today, labels),

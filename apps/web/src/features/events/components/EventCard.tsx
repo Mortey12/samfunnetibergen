@@ -145,6 +145,8 @@ export interface EventCardProps extends VariantProps<typeof eventCardVariants> {
   hideParentName?: boolean
   trackingSurface?: string
   trackingPosition?: number
+  /** Whether the card was ranked or a random pick, for surfaces that mix both. */
+  trackingPick?: "ranked" | "random"
 }
 
 type EventCardVariant = "default" | "catalogue" | "promoted" | "slider"
@@ -172,6 +174,7 @@ export function EventCard({
   size,
   trackingSurface = "events-list",
   trackingPosition,
+  trackingPick,
   variant,
 }: EventCardProps) {
   const t = useTranslations("EventCard")
@@ -191,7 +194,13 @@ export function EventCard({
   return (
     <Link
       className={eventCardVariants({ variant: cardVariant, size: cardSize })}
-      {...eventTrackingAttributes(event, trackingSurface, trackingPosition)}
+      {...eventTrackingAttributes(
+        event,
+        trackingSurface,
+        trackingPosition,
+        undefined,
+        trackingPick,
+      )}
       href={href}
     >
       <Card className={eventCardSurfaceVariants({ variant: cardVariant })}>
