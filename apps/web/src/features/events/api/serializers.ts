@@ -2,6 +2,7 @@ import { resolveSiteUrl } from "@/lib/site-url"
 
 import {
   DEFAULT_PUBLIC_VENUE_NAME,
+  eventDisplayTitle,
   type PublicEvent,
   type PublicOccurrence,
   type PublicSchedule,
@@ -125,7 +126,7 @@ function serializePublicEvent(
     kind: event.eventKind,
     status: event.eventStatus,
     updatedAt: event.effectiveUpdatedAt,
-    title: event.title,
+    title: eventDisplayTitle(event),
     description: serializePublicDescription(event.description),
     image: serializeImage(event),
     eventType: event.eventType

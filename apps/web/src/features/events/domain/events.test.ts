@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  eventDisplayTitle,
   flattenPublicOccurrences,
   normalizePublicSchedule,
   type PublicEventDate,
@@ -164,5 +165,46 @@ describe("public occurrence schedules", () => {
       "occurrence:event-keyless:2026-09-10-0",
       "occurrence:event-keyless:2026-09-10-1",
     ])
+  })
+})
+
+describe("eventDisplayTitle", () => {
+  const session = { title: "Teo", eventKind: "festivalSession" }
+
+  it("puts the festival's name in front of a session's title", () => {
+    expect(
+      eventDisplayTitle({
+        ...session,
+        parentEvent: { title: "Vill Vill Vest" },
+      }),
+    ).toBe("Vill Vill Vest: Teo")
+  })
+
+  it("does not repeat the festival's name", () => {
+    const parentEvent = { title: "Vill Vill Vest" }
+
+    expect(
+      eventDisplayTitle({ ...session, title: "Vill Vill Vest", parentEvent }),
+    ).toBe("Vill Vill Vest")
+    expect(
+      eventDisplayTitle({
+        ...session,
+        title: "Vill Vill Vest: Teo",
+        parentEvent,
+      }),
+    ).toBe("Vill Vill Vest: Teo")
+  })
+
+  it("leaves other events alone", () => {
+    expect(
+      eventDisplayTitle({
+        title: "Weekly quiz 3",
+        eventKind: "seriesInstance",
+        parentEvent: { title: "Weekly quiz" },
+      }),
+    ).toBe("Weekly quiz 3")
+    expect(eventDisplayTitle({ title: "Concert", eventKind: "single" })).toBe(
+      "Concert",
+    )
   })
 })

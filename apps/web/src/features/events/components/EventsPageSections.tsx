@@ -43,6 +43,7 @@ function toEventSummary(
     promotedOrder: event.promotedOrder,
     initialSlug: event.initialSlug,
     title: event.title,
+    parentEvent: event.parentEvent,
     slug: event.slug,
     eventKind: event.eventKind,
     isRecurring: event.isRecurring ?? undefined,
