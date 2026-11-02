@@ -14,6 +14,7 @@ import {
   type FestivalLabels,
   FestivalProgramme,
 } from "@/features/events/components/FestivalProgramme"
+import { SimilarEvents } from "@/features/events/components/SimilarEvents"
 import { eventDateAnchor } from "@/features/events/domain/calendar"
 import { buildCardDateLabels } from "@/features/events/domain/dates"
 import {
@@ -143,6 +144,7 @@ export default async function EventPage({ params }: EventPageProps) {
             event={eventData}
             eventSlug={resolvedParams.event}
             dateRows={eventDateRows(eventData, childEvents, today)}
+            today={today}
             recurringLabel={
               buildCardDateLabels(eventData, today, cardLabels)
                 .recurringDetailLabel
@@ -221,6 +223,7 @@ function EventDetailPage({
   event,
   eventSlug,
   dateRows,
+  today,
   recurringLabel,
   locale,
   t,
@@ -228,6 +231,7 @@ function EventDetailPage({
   event: EventDetail
   eventSlug: string
   dateRows: EventDateRow[]
+  today: string
   recurringLabel: string | null
   locale: AppLocale
   t: Translator
@@ -240,6 +244,13 @@ function EventDetailPage({
         date => date.ticketUrl && date.ticketUrl !== event.ticketUrl,
       ))
   const showInlineDateTickets = showDateTickets && dateRows.length <= 3
+  // Cancelled, sold-out and past events lead nowhere on their own, so their
+  // similar events move up under the hero.
+  const isDeadEnd =
+    event.eventStatus !== "scheduled" ||
+    event.isSoldOut === true ||
+    !dateRows.some(row => row.date.startDate >= today)
+  const similarEvents = <SimilarEvents event={event} locale={locale} />
 
   return (
     <>
@@ -254,6 +265,7 @@ function EventDetailPage({
         locale={locale}
         t={t}
       />
+      {isDeadEnd && similarEvents}
       {showDateTickets && !showInlineDateTickets && (
         <EventDateList rows={dateRows} locale={locale} showTickets t={t} />
       )}
@@ -261,6 +273,7 @@ function EventDetailPage({
       {dateRows.length > 1 && !showDateTickets && (
         <EventDateList rows={dateRows} locale={locale} t={t} />
       )}
+      {!isDeadEnd && similarEvents}
     </>
   )
 }

@@ -26,6 +26,7 @@ export function placementProperties(element: HTMLElement, locale: string) {
       calendar: "Kalender",
       "detail-parent": "Event page — parent event",
       "detail-child": "Event page — child events",
+      "detail-similar": "Event page — similar events",
     }[surface ?? ""] ?? surface
   return {
     event_id: element.dataset.eventId,
