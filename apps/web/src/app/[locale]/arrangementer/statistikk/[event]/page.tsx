@@ -306,14 +306,19 @@ export default async function EventStatisticsPage({
           <Section id="hvor-fra" title="Hvor de kom fra">
             <div className="grid gap-6 lg:grid-cols-3">
               <BreakdownPanel
-                caption="Hvordan besøkende kom til nettsiden."
+                caption="Registrert henvisningsdomene for hver visning. Ukjent kilde betyr at henvisningsdomene mangler; det kan også inkludere lenker fra apper og meldinger."
                 items={detail.channels}
-                title="Kanaler"
+                title="Henvisningskilder"
               />
               <BreakdownPanel
-                caption="Nettsteder som sendte besøkende hit."
+                caption="Registrerte henvisningsdomener for visningene."
                 items={detail.sites}
                 title="Nettsteder"
+              />
+              <BreakdownPanel
+                caption="Registrert plassering på nettsiden der arrangementet ble klikket. Ikke registrert betyr at vi ikke har en slik måling, og inkluderer også besøk utenfra."
+                items={detail.entrySurfaces}
+                title="Veien til arrangementet"
               />
               <BreakdownPanel
                 caption="Visninger fordelt på type enhet."

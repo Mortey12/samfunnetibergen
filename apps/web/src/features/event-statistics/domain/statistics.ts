@@ -313,7 +313,7 @@ const OWN_SITE = /(^|\.)samfunnetibergen\.no$/
 
 export const TRAFFIC_CHANNELS = [
   "Søkemotorer",
-  "Direkte",
+  "Ukjent kilde",
   "Sosiale medier",
   "samfunnetibergen.no",
   "Andre nettsider",
@@ -328,7 +328,7 @@ export function channelForDomain(
     .trim()
     .toLowerCase()
     .replace(/^l\.|^m\.|^lm\./, "")
-  if (!host || host === "$direct") return "Direkte"
+  if (!host || host === "$direct") return "Ukjent kilde"
   if (SEARCH_ENGINES.test(host)) return "Søkemotorer"
   if (SOCIAL.test(host)) return "Sosiale medier"
   if (OWN_SITE.test(host)) return "samfunnetibergen.no"
@@ -368,6 +368,7 @@ export type EventDetail = {
   daily: DailyPoint[]
   dailyClicks: DailyClicks[]
   channels: NamedCount[]
+  entrySurfaces: NamedCount[]
   sites: NamedCount[]
   devices: NamedCount[]
   /** Per-date rows when the event is a series. */

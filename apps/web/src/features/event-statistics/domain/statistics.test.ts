@@ -200,8 +200,8 @@ describe("arrangement statistics table", () => {
 
 describe("event detail helpers", () => {
   it("groups referring domains into channels", () => {
-    expect(channelForDomain("$direct")).toBe("Direkte")
-    expect(channelForDomain(null)).toBe("Direkte")
+    expect(channelForDomain("$direct")).toBe("Ukjent kilde")
+    expect(channelForDomain(null)).toBe("Ukjent kilde")
     expect(channelForDomain("www.google.no")).toBe("Søkemotorer")
     expect(channelForDomain("search.brave.com")).toBe("Søkemotorer")
     expect(channelForDomain("l.instagram.com")).toBe("Sosiale medier")
