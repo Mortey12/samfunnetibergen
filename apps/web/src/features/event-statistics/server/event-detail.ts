@@ -512,6 +512,7 @@ const SURFACE_NAMES: Record<string, string> = {
   calendar: "Arrangementkalenderen",
   "detail-parent": "Serie- og festivalsider",
   "detail-child": "Datoer på seriesider",
+  "detail-similar": "Lignende arrangementer",
 }
 
 const LISTING_SURFACES = [
@@ -519,10 +520,11 @@ const LISTING_SURFACES = [
   "home-upcoming",
   "events-list",
   "calendar",
+  "detail-similar",
 ] as const
 
 /** Seen → clicked → visited → ticket click, per listing surface. */
-function surfaceFunnels(
+export function surfaceFunnels(
   placements: Array<{ surface: string | null; clicks: number }>,
   seen: Array<{ surface: string | null; seen: number }>,
   entryViews: Array<{ surface: string | null; views: number }>,

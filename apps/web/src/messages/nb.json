@@ -435,6 +435,8 @@
     "festivalEmpty": "Programmet publiseres snart.",
     "recurrence": "Gjentakelse",
     "upcomingDates": "Kommende datoer",
+    "similarEvents": "Lignende arrangementer",
+    "similarEventsMore": "Se flere",
     "priceFree": "Gratis",
     "priceOrdinary": "Ord. {price} kr",
     "priceStudent": "Stud. {price} kr",

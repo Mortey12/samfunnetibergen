@@ -438,6 +438,8 @@
     "festivalEmpty": "The programme will be published soon.",
     "recurrence": "Recurrence",
     "upcomingDates": "Upcoming dates",
+    "similarEvents": "Similar events",
+    "similarEventsMore": "See more",
     "priceFree": "Free",
     "priceOrdinary": "Regular {price} kr",
     "priceStudent": "Student {price} kr",
