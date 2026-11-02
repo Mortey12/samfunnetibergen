@@ -9,6 +9,7 @@ import { Tag } from "@/components/ui/tag"
 import { Link } from "@/i18n/navigation"
 import { eventTrackingAttributes } from "@/lib/posthog/tracking-attributes"
 import { cn } from "@/lib/utils"
+import { eventDisplayTitle } from "../domain/events"
 import { DateBadges } from "./DateBadges"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,6 +22,8 @@ export type EventDateEntry = {
 }
 
 export type EventSummary = {
+  /** Name of the parent festival or series, used to prefix a session's title. */
+  parentEvent?: { title: string } | null
   isPromoted?: boolean
   promotedPlacement?: "top" | "pool" | null
   promotedOrder?: number | null
@@ -138,6 +141,8 @@ export interface EventCardProps extends VariantProps<typeof eventCardVariants> {
   priority?: boolean
   showRoom?: boolean
   showFestivalBadge?: boolean
+  /** List a festival session by its plain title, as on the festival page. */
+  hideParentName?: boolean
   trackingSurface?: string
   trackingPosition?: number
 }
@@ -159,16 +164,20 @@ const CARD_IMAGE_SIZES: Record<EventCardVariant, string> = {
 type EventCardSize = "default" | "small"
 
 export function EventCard({
-  event,
+  event: sourceEvent,
   priority = false,
   showRoom = true,
   showFestivalBadge = true,
+  hideParentName = false,
   size,
   trackingSurface = "events-list",
   trackingPosition,
   variant,
 }: EventCardProps) {
   const t = useTranslations("EventCard")
+  const event = hideParentName
+    ? sourceEvent
+    : { ...sourceEvent, title: eventDisplayTitle(sourceEvent) }
   const cardSize = size ?? "default"
   const cardVariant = variant ?? "default"
   const isEditorial = cardVariant !== "default"

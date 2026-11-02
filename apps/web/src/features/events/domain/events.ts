@@ -462,6 +462,23 @@ export function resolvePublicEvent(row: RawPublicEvent): PublicEvent {
   }
 }
 
+/**
+ * The title to show where a festival session is listed on its own: the
+ * festival's name in front of the session's, e.g. "Vill Vill Vest: Teo". The
+ * festival page itself lists sessions by their plain title.
+ */
+export function eventDisplayTitle(event: {
+  title: string
+  eventKind?: string | null
+  parentEvent?: { title: string } | null
+}): string {
+  const parentTitle = event.parentEvent?.title
+  if (event.eventKind !== "festivalSession" || !parentTitle) return event.title
+  if (event.title === parentTitle) return event.title
+  if (event.title.startsWith(`${parentTitle}: `)) return event.title
+  return `${parentTitle}: ${event.title}`
+}
+
 function occurrenceId(eventId: string, dateKey: string): string {
   return `occurrence:${eventId}:${dateKey}`
 }

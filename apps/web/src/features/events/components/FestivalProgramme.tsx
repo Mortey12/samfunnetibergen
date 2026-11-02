@@ -217,6 +217,7 @@ function FestivalCard({
     <EventCard
       variant="catalogue"
       showFestivalBadge={false}
+      hideParentName
       trackingSurface="detail-child"
       event={{
         ...event,

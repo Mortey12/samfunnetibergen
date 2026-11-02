@@ -17,6 +17,7 @@ import {
   type CalendarOccurrence,
   eventDateAnchor,
 } from "../domain/calendar"
+import { eventDisplayTitle } from "../domain/events"
 
 const OSLO_TIME_ZONE = "Europe/Oslo"
 
@@ -59,6 +60,7 @@ function formatTime(occurrence: CalendarOccurrence, prefix: string) {
 function CalendarEvent({ occurrence }: { occurrence: CalendarOccurrence }) {
   const t = useTranslations("EventCard")
   const { event } = occurrence
+  const title = eventDisplayTitle(event)
   const imageUrl = event.imageUrl
   const time = formatTime(occurrence, t("timePrefix"))
   const destinationSlug =
@@ -81,7 +83,7 @@ function CalendarEvent({ occurrence }: { occurrence: CalendarOccurrence }) {
       {imageUrl ? (
         <div className="relative aspect-4/3 w-full overflow-hidden bg-muted">
           <SanityImage
-            alt={event.imageAlt ?? event.imageCaption ?? event.title}
+            alt={event.imageAlt ?? event.imageCaption ?? title}
             aspectRatio={4 / 3}
             className="transition-transform duration-300 group-hover:scale-105"
             frame={event.imageFrame}
@@ -92,12 +94,12 @@ function CalendarEvent({ occurrence }: { occurrence: CalendarOccurrence }) {
       ) : (
         <div className="flex aspect-4/3 items-center justify-center bg-muted p-3 text-center font-heading text-sm text-foreground-muted">
           <CalendarDays className="mr-1.5 size-4 shrink-0" aria-hidden />
-          <span>{event.title}</span>
+          <span>{title}</span>
         </div>
       )}
       <div className="space-y-2 p-0 pt-2 md:p-3">
         <p className="font-heading text-2xl leading-tight group-hover:underline group-hover:underline-offset-2 md:text-base">
-          {event.title}
+          {title}
         </p>
         {time && (
           <p className="text-2xl leading-tight text-foreground-muted md:text-sm">

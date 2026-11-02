@@ -81,6 +81,14 @@ to the supported HTML subset before they leave the API.
 The website event detail page continues to use the shared server service
 directly. There is no separate event-detail HTTP endpoint.
 
+
+### Titles of festival sessions
+
+`event.title` of a festival session is prefixed with the festival's name, for
+example `Vill Vill Vest: Teo`, so the event makes sense listed on its own. The
+festival is in `event.parent`, and the festival page lists sessions by their
+plain title.
+
 ## Taxonomy discovery
 
 `GET /api/v1/events/taxonomy` returns active published event types grouped by
