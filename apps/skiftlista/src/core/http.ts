@@ -242,6 +242,10 @@ export function createHttpApi(fetchFn: typeof fetch = fetch): LeaderApi {
       write("DELETE", `/placements/${assignmentId}`, board, {
         query: { slot_id: String(slotOfAssignment(board, assignmentId)) },
       }),
+    addPlace: (board, shiftId, kind) =>
+      write("POST", `/shifts/${shiftId}/places`, board, { body: { kind } }),
+    removePlace: (board, slotId) =>
+      write("DELETE", `/slots/${realSlot(slotId)}/seat`, board),
     setStatus: (board, status) =>
       write("PUT", `/weeks/${board.week_start}/status`, board, {
         body: { status },

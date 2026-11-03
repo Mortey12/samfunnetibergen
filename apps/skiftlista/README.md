@@ -27,7 +27,8 @@ or `PERSONAL_URL`). Log in at Personal first, then open
 (`?bar=7&uke=2026-11-02`). `TESTING.md` parts 7 and 8 have the click-by-click
 steps (look, then change the week).
 
-Writes (`placements`, `placements/swap`, `weeks/{week}/status`) send
+Writes (`placements`, `placements/swap`, `shifts/{id}/places` for "+",
+`slots/{id}/seat` for "−", `weeks/{week}/status`) send
 `X-CSRF-Token` (from `GET /me`), `If-Match` (the board's `version`) and, after
 the popup, `confirmed`. Personal checks the `Origin` against its
 `LEADER_APP_ORIGINS` setting, so a local Personal needs
@@ -95,6 +96,11 @@ locally and point `LD_LIBRARY_PATH` at them:
 - "Publiser uka", then change something: the status says "Endret etter
   publisering". A banner under the title says when the week is not published
   (or was changed after publishing) and goes away when it is published.
+- Under a shift's places, the line "Skjenker: 2" has a "−" and a "+": one more
+  place, or one empty place less (Kokk instead of Skjenker in the kitchen).
+  Both are undone with "Angre" (each is the other's inverse). "−" never
+  removes a person. Skiftleder and Opplæring have neither: a shift has exactly
+  one skiftleder place, and training is a mode of a place, not a kind.
 - Make the window narrower than 80rem (1280 px at 100 percent zoom): a place
   now opens in a sheet over the page instead of the side panel.
 
@@ -106,8 +112,8 @@ locally and point `LD_LIBRARY_PATH` at them:
   (what a drop means), and their tests.
 - `src/core/http.ts`: the real client and the translation of Personal's JSON
   (`toBoard`); `http.test.ts` tests it with a fake `fetch`.
-- `src/board/`: the Svelte components (`WeekGrid`, `PlaceBox`, `PeoplePanel`,
-  `PlacePanel`, `Chip`); `src/App.svelte` holds the state.
+- `src/board/`: the Svelte components (`WeekGrid`, `PlaceBox`, `RolePlaces`,
+  `PeoplePanel`, `PlacePanel`, `Chip`); `src/App.svelte` holds the state.
 - `src/lib/`: class recipes copied from `apps/web` (`button.ts`,
   `selection-control.ts`), `cn.ts`, and `SectionMark.svelte`.
 - `src/lib/sheet/`: the one shadcn-svelte part in use, a Sheet (bottom side

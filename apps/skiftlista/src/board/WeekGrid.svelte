@@ -4,6 +4,7 @@ import type { Op } from "../core/ops"
 import type { Person, Place, WeekBoard } from "../core/types"
 import {
   ANSWER_WORD,
+  addableKinds,
   answerOf,
   DAY_NAMES,
   firstName,
@@ -13,6 +14,7 @@ import {
 } from "../core/view"
 import { cn } from "../lib/cn"
 import PlaceBox from "./PlaceBox.svelte"
+import RolePlaces from "./RolePlaces.svelte"
 
 interface Props {
   board: WeekBoard
@@ -29,6 +31,7 @@ interface Props {
 let props: Props = $props()
 
 const days = $derived(weekDays(props.board))
+const kinds = $derived(addableKinds(props.board))
 const activeDays = $derived(new Set(props.board.shifts.map(shift => shift.day)))
 
 /** "Satt opp" or "Opptatt" in a day header for the selected person. */
@@ -162,6 +165,16 @@ function counts(answers: Record<string, string>) {
                       onOp={props.onOp}
                     />
                   {/each}
+                  {#if !shift.closed}
+                    {#each kinds as kind (kind)}
+                      <RolePlaces
+                        {kind}
+                        {shift}
+                        busy={props.busy}
+                        onOp={props.onOp}
+                      />
+                    {/each}
+                  {/if}
                   <p
                     class="flex flex-wrap justify-between gap-x-2 text-xs text-foreground-muted"
                   >

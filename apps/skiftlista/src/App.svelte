@@ -107,7 +107,8 @@ let showMissing = $state(false)
 let pendingConfirm = $state<{ op: Op; confirmation: Confirmation } | null>(null)
 // After an action, focus goes to the changed place (as on Personal's week
 // page). It waits for the render that shows the new week.
-let pendingFocus = $state<number | null>(null)
+/** A place (its slot id) or a CSS selector to put keyboard focus on. */
+let pendingFocus = $state<number | string | null>(null)
 // From 80rem (Tailwind's xl) the place panel sits beside the grid; below it
 // the panel opens in a sheet over the page. Same breakpoint as the grid's
 // two-column layout in the markup below.
@@ -209,7 +210,11 @@ $effect(() => {
 
 $effect(() => {
   if (pendingFocus === null || busy || !board) return
-  document.querySelector<HTMLElement>(`[data-slot="${pendingFocus}"]`)?.focus()
+  const selector =
+    typeof pendingFocus === "string"
+      ? pendingFocus
+      : `[data-slot="${pendingFocus}"]`
+  document.querySelector<HTMLElement>(selector)?.focus()
   pendingFocus = null
 })
 
@@ -229,6 +234,10 @@ function labelFor(op: Op, current: WeekBoard): string {
       return "bytte"
     case "status":
       return op.status === "published" ? "publisering" : "åpning"
+    case "addPlace":
+      return "ny plass"
+    case "removePlace":
+      return "plass fjernet"
   }
 }
 
@@ -253,7 +262,11 @@ async function execute(op: Op, label: string, isUndo = false) {
           ? op.toSlotId
           : op.type === "swap"
             ? op.slotB
-            : null
+            : op.type === "addPlace"
+              ? `[data-plus="${op.shiftId}-${op.kind}"]`
+              : op.type === "removePlace"
+                ? `[data-minus="${op.shiftId}-${op.kind}"]`
+                : null
   } catch (error) {
     const text =
       error instanceof RefusedError
@@ -277,6 +290,8 @@ function targetSlot(op: Op): number | null {
     case "swap":
       return op.slotB
     case "status":
+    case "addPlace":
+    case "removePlace":
       return null
   }
 }

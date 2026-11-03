@@ -661,7 +661,7 @@ export function mondayOf(iso: string): string {
 }
 
 function placeLabel(shift: StoredShift, place: StoredPlace): string {
-  const kind = place.kind === "skiftleder" ? "skiftleder" : "skjenker"
+  const kind = place.kind === "opplaering" ? "opplæring" : place.kind
   return `${kind}, ${shortDate(shift.day)}, ${shift.title.toLowerCase()}`
 }
 
@@ -806,6 +806,50 @@ export function createFakeApi(
         board,
         `${who.name} er tatt av ${placeLabel(shift, place)}.`,
       )
+    },
+    async addPlace(board, shiftId, kind) {
+      await wait()
+      requireFresh(store, board)
+      const shift = store.shifts.find(item => item.shift_id === shiftId)
+      if (!shift) throw new RefusedError("Skiftet finnes ikke lenger.")
+      if (kind === "skiftleder")
+        throw new RefusedError(
+          "Et skift har én skiftleder. Den legges ikke til eller fjernes her.",
+        )
+      if (kind === "opplaering")
+        throw new RefusedError(
+          "Opplæring er ikke en egen type plass. Legg til en skjenker i stedet.",
+        )
+      if (shift.places.filter(item => item.kind === kind).length >= 20)
+        throw new RefusedError(
+          "Det kan ikke være flere enn 20 plasser av samme type.",
+        )
+      // Same order as the server: after the last place of the same kind.
+      const last = shift.places.findLastIndex(item => item.kind === kind)
+      const highest = Math.max(
+        ...store.shifts.flatMap(item => item.places.map(p => p.slot_id)),
+      )
+      const added = { slot_id: highest + 1, kind, assignment: null }
+      if (last === -1) shift.places.push(added)
+      else shift.places.splice(last + 1, 0, added)
+      touch(store, board)
+      return result(board, `Ny plass som ${placeLabel(shift, added)}.`)
+    },
+    async removePlace(board, slotId) {
+      await wait()
+      requireFresh(store, board)
+      const { shift, place } = findPlace(store, slotId)
+      if (place.kind === "skiftleder")
+        throw new RefusedError(
+          "Et skift har én skiftleder. Den legges ikke til eller fjernes her.",
+        )
+      if (place.assignment)
+        throw new RefusedError(
+          "Alle plassene av denne typen er i bruk. Ta personen av først.",
+        )
+      shift.places = shift.places.filter(item => item !== place)
+      touch(store, board)
+      return result(board, `Plassen er fjernet, ${placeLabel(shift, place)}.`)
     },
     async setStatus(board, status) {
       await wait()

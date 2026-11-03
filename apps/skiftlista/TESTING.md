@@ -437,6 +437,35 @@ You should see:
 
 - [ ] It matched
 
+### 2.21 More or fewer places on a shift (plus and minus)
+
+Sometimes a shift needs one more person ("this Thursday will be busy", "a trainee wants to join"), or one place too many. Under the places of every shift there is a line "Skjenker: 2" with a "−" and a "+" button.
+
+Press F5 first, to start from the beginning.
+
+Do this:
+
+1. Find the column Torsdag, row Dagskift. Under its places, click "+" on the line "Skjenker".
+2. Press Ctrl and Z at the same time.
+3. Click "−" on the same line until the number is 0.
+4. Click "+" once.
+5. Click "Emil T." in the list (after "Uten skift"), then click one of the Skjenker places on Torsdag Dagskift so Emil is on it. Click "−" until it stops working.
+6. Click the Skiftleder place on Torsdag Dagskift and look at the box on the right. Look under the places of the shift: is there a line with "−" and "+" for Skiftleder?
+7. Press Ctrl and P, look at the preview, and cancel.
+
+You should see:
+
+- Step 1: a green message "Ny plass som skjenker, ...", the number goes up by one, and Torsdag Dagskift has one more Skjenker place that says Ledig. The thick coloured frame stays on "+".
+- Step 2: the message says the place is removed, and the extra place is gone again.
+- Step 3: each click removes one empty place. At 0 the line is still there, with "+" and a dimmed "−".
+- Step 4: one Skjenker place is back.
+- Step 5: "−" removes only the empty places. Emil's place stays, "−" becomes dimmed and nothing happens when it is pressed. A person is never taken off by "−"; first take the person off, then the place can be removed.
+- Step 6: there is no "−" or "+" for Skiftleder, and the box on the right has no remove-place button. Every shift has exactly one skiftleder place. There is none for Opplæring either: training is a mode of a place, not a kind of place.
+- Step 7: the lines with "−" and "+" are not on the paper.
+- In the kitchen the line says "Kokk" instead of "Skjenker".
+
+- [ ] It matched
+
 ## Part 3: Try it without a mouse
 
 Some leaders use only the keyboard. Put the mouse aside for these tests.
@@ -865,6 +894,30 @@ You should see:
 
 - [ ] It matched
 
+### 8.7 More or fewer places on real demo data
+
+Use the bar Stjerne, week 47: `http://localhost:3190/?api=http&bar=7&uke=2026-11-16`. Every change here is saved in Personal's demo database, and each is undone by the next steps.
+
+Do this:
+
+1. Click "+" on the line "Skjenker" under the places of any shift. Note the message and the round button "ledige".
+2. Press Ctrl and Z at the same time.
+3. Click "+" on a shift again, and then "−" on the same line.
+4. On a shift where all the Skjenker places have people, click "−".
+5. Open the same address in a second Chrome tab (tab 2). In tab 1 do step 1. In tab 2 (without reloading) click "+". Then press Ctrl and Z in tab 1.
+
+You should see:
+
+- Step 1: "Ny plass som skjenker, ...", one more empty Skjenker place, and the number of "ledige" goes up by one.
+- Step 2: the extra place is gone and "ledige" is back.
+- Step 3: the place appears and goes away again.
+- Step 4: "−" is dimmed and does nothing, because no Skjenker place is empty. Personal also refuses it with "Alle plassene av denne typen er i bruk. Ta personen av først." if the place was filled meanwhile.
+- Step 5: in tab 2 a red message "En annen leder har endret uka. Siden er oppdatert, prøv igjen." and nothing is added, as in 8.3.
+- A shift that is closed has no "−" and "+".
+- Skiftleder and Opplæring have no "−" or "+", and Personal refuses them too: "Et skift har én skiftleder. Den legges ikke til eller fjernes her."
+
+- [ ] It matched
+
 ## Part 6: Tell us what you found
 
 For each problem, write down four things:
@@ -885,7 +938,7 @@ Things that are not finished yet, so you do not need to report them:
 - Nothing is saved. Reloading the page (F5) starts over.
 - The button "Lag forslag for uka" is grey on purpose, and its hover text says "Kommer senere". Suggestions come later.
 - The text about "Vis andre" in the box on the right is a placeholder for something that comes later.
-- Not built yet on real data: "Lag forslag for uka", plus and minus on the number of places in a shift, and a yellow "Endret etter publisering" label (Personal does not have that state).
+- Not built yet on real data: "Lag forslag for uka", a yellow "Endret etter publisering" label (Personal does not have that state).
 - On a phone, the box "Folk denne uka" is shown below the grid. A special phone layout for the whole page comes later (only the place sheet, test 4.4, is done).
 
 ## For developers (optional): the automatic checks
@@ -906,7 +959,7 @@ Run the small tests:
 
     npm run test:skiftlista
 
-You should see: It says Tests 36 passed (36).
+You should see: It says Tests 42 passed (42).
 
 Go to the app folder:
 
@@ -920,4 +973,4 @@ Run the browser tests (they click through the page by themselves, about 15 secon
 
     npx playwright test
 
-You should see: It ends with 50 passed. (41 run in a laptop-sized window and 9 in a phone-sized window; the computer switches the window size by itself. Some of them pretend to be Personal, so they work without it.)
+You should see: It ends with 59 passed. (50 run in a laptop-sized window and 9 in a phone-sized window; the computer switches the window size by itself. Some of them pretend to be Personal, so they work without it.)

@@ -91,6 +91,53 @@ describe("undo", () => {
     expect(occupant(undone.board, a.slot_id)).toBe(a.assignment?.volunteer_id)
   })
 
+  it("takes a new place away again, and puts a removed one back", async () => {
+    const { api, board } = await setup()
+    const shift = board.shifts.find(item =>
+      item.places.some(place => place.kind === "skjenker"),
+    )
+    if (!shift) throw new Error("no shift")
+    const count = (b: WeekBoard) =>
+      b.shifts
+        .find(item => item.shift_id === shift.shift_id)
+        ?.places.filter(place => place.kind === "skjenker").length ?? 0
+    const before = count(board)
+
+    const add = {
+      type: "addPlace" as const,
+      shiftId: shift.shift_id,
+      kind: "skjenker" as const,
+    }
+    const added = await run(api, board, add)
+    expect(count(added.board)).toBe(before + 1)
+
+    const minus = inverseOf(add, board)
+    expect(minus).toEqual({ ...add, type: "removePlace" })
+    if (!minus) throw new Error("no inverse")
+    const removed = await run(api, added.board, minus)
+    expect(count(removed.board)).toBe(before)
+    expect(inverseOf(minus, added.board)).toEqual(add)
+  })
+
+  it("minus never takes a person off", async () => {
+    const { api, board } = await setup()
+    // A shift where every place of a kind is taken.
+    const shift = board.shifts.find(item =>
+      item.places.some(
+        place => place.kind === "skiftleder" && place.assignment,
+      ),
+    )
+    if (!shift) throw new Error("no full place")
+    const op = {
+      type: "removePlace" as const,
+      shiftId: shift.shift_id,
+      kind: "skiftleder" as const,
+    }
+    const kinds = shift.places.filter(place => place.kind === "skiftleder")
+    expect(kinds.every(place => place.assignment)).toBe(true)
+    await expect(run(api, board, op)).rejects.toThrow("er i bruk")
+  })
+
   it("keeps the last twenty steps", () => {
     let stack: UndoEntry[] = Array.from({ length: UNDO_LIMIT }, (_, index) => ({
       weekKey: "w",

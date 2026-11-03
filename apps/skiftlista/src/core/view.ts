@@ -44,6 +44,19 @@ export const KIND_LABEL: Record<PlaceKind, string> = {
   garderobe: "Garderobe",
 }
 
+/**
+ * What "−" and "+" are shown for on every shift: Skjenker in the bars, and
+ * Kokk where the bar has kokk places this week (the kitchen). Never Skiftleder (every shift has
+ * exactly one) or Opplæring (a mode of a place, not a kind). No other roles
+ * for now; Personal refuses them too.
+ */
+export function addableKinds(board: WeekBoard): PlaceKind[] {
+  const kitchen = board.shifts.some(shift =>
+    shift.places.some(place => place.kind === "kokk"),
+  )
+  return [kitchen ? "kokk" : "skjenker"]
+}
+
 export const STATUS_TEXT: Record<WeekStatus, string> = {
   open: "Utkast: ikke synlig i appen",
   published: "Publisert",

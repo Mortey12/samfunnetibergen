@@ -196,6 +196,14 @@ export interface LeaderApi {
   swap(board: WeekBoard, a: number, b: number): Promise<WriteResult>
   /** DELETE /placements/{assignment_id} */
   remove(board: WeekBoard, assignmentId: number): Promise<WriteResult>
+  /** POST /shifts/{shift_id}/places: one more place of a kind ("+"). */
+  addPlace(
+    board: WeekBoard,
+    shiftId: number,
+    kind: PlaceKind,
+  ): Promise<WriteResult>
+  /** DELETE /slots/{slot_id}/seat: one EMPTY place less ("−"). */
+  removePlace(board: WeekBoard, slotId: number): Promise<WriteResult>
   /** PUT /weeks/{week_start}/status */
   setStatus(
     board: WeekBoard,

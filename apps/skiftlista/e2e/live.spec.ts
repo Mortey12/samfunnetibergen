@@ -372,3 +372,78 @@ test("no automatic accessibility violations on a real board", async ({
     .analyze()
   expect(results.violations.map(v => `${v.id}: ${v.nodes.length}`)).toEqual([])
 })
+
+// ---- plus and minus ------------------------------------------------------------------------------
+
+/** The shift of the easy placing, and the last empty skjenker box on it (what "-" takes away). */
+function shiftWithEmptySkjenker() {
+  const { place } = easyPlacing()
+  const shift = WEEK.shifts.find((item: { places: FixturePlace[] }) =>
+    item.places.some(p => p.slot_id === place.slot_id),
+  )
+  const empty = (shift.places as FixturePlace[]).filter(
+    p => p.kind === "skjenker" && !p.assignment,
+  )
+  return { shift, last: empty[empty.length - 1] }
+}
+
+test("plus sends POST on the shift with the kind, token and version", async ({
+  page,
+}) => {
+  const asked = await mockPersonal(page)
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  const { shift } = shiftWithEmptySkjenker()
+
+  await page.locator(`[data-plus="${shift.shift_id}-skjenker"]`).click()
+
+  await expect(
+    page.getByRole("status").filter({ hasText: "Gjort." }),
+  ).toBeVisible()
+  expect(asked.writes).toHaveLength(1)
+  const write = asked.writes[0]
+  expect(write.method).toBe("POST")
+  expect(write.path).toBe(
+    `/shifts/${shift.shift_id}/places?group_id=7&week_start=2026-11-02`,
+  )
+  expect(write.headers["x-csrf-token"]).toBe("fixture")
+  expect(write.headers["if-match"]).toBe(WEEK.version)
+  expect(write.body).toEqual({ kind: "skjenker" })
+})
+
+test("minus sends DELETE on the real slot of the last empty place", async ({
+  page,
+}) => {
+  const asked = await mockPersonal(page)
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  const { shift, last } = shiftWithEmptySkjenker()
+
+  await page.locator(`[data-minus="${shift.shift_id}-skjenker"]`).click()
+
+  await expect(
+    page.getByRole("status").filter({ hasText: "Gjort." }),
+  ).toBeVisible()
+  expect(asked.writes).toHaveLength(1)
+  expect(asked.writes[0].method).toBe("DELETE")
+  expect(asked.writes[0].path).toBe(
+    `/slots/${last.slot_id}/seat?group_id=7&week_start=2026-11-02`,
+  )
+  expect(asked.writes[0].headers["if-match"]).toBe(WEEK.version)
+})
+
+test("a refusal of minus shows Personal's text", async ({ page }) => {
+  await mockPersonal(page, () => ({
+    status: 409,
+    json: {
+      detail: "Alle plassene av denne typen er i bruk. Ta personen av først.",
+    },
+  }))
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  const { shift } = shiftWithEmptySkjenker()
+  await page.locator(`[data-minus="${shift.shift_id}-skjenker"]`).click()
+  await expect(
+    page.getByRole("alert").or(page.getByRole("status")),
+  ).toContainText("er i bruk")
+})

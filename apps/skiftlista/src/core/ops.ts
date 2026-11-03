@@ -6,7 +6,14 @@
  * the server checks every rule again and may refuse.
  */
 
-import type { LeaderApi, Place, WeekBoard, WriteResult } from "./types"
+import {
+  type LeaderApi,
+  type Place,
+  type PlaceKind,
+  RefusedError,
+  type WeekBoard,
+  type WriteResult,
+} from "./types"
 
 /**
  * `confirmed` is set once the leader accepted the big warning for a person
@@ -25,6 +32,10 @@ export type Op =
   | { type: "move"; fromSlotId: number; toSlotId: number; confirmed?: boolean }
   | { type: "swap"; slotA: number; slotB: number }
   | { type: "status"; status: "open" | "published" }
+  /** "+": one more place of a kind on a shift. Addressed by shift and kind, not by place, so undo survives new ids. */
+  | { type: "addPlace"; shiftId: number; kind: PlaceKind }
+  /** "−": one empty place of a kind less. The inverse of addPlace. */
+  | { type: "removePlace"; shiftId: number; kind: PlaceKind }
 
 export const UNDO_LIMIT = 20
 
@@ -81,11 +92,15 @@ export function inverseOf(op: Op, before: WeekBoard): Op | null {
         type: "status",
         status: before.status === "open" ? "open" : "published",
       }
+    case "addPlace":
+      return { type: "removePlace", shiftId: op.shiftId, kind: op.kind }
+    case "removePlace":
+      return { type: "addPlace", shiftId: op.shiftId, kind: op.kind }
   }
 }
 
 /** Runs an action against the current week. */
-export function run(
+export async function run(
   api: LeaderApi,
   board: WeekBoard,
   op: Op,
@@ -117,7 +132,29 @@ export function run(
       )
     case "status":
       return api.setStatus(board, op.status)
+    case "addPlace":
+      return api.addPlace(board, op.shiftId, op.kind)
+    case "removePlace":
+      return api.removePlace(board, emptyPlaceOf(board, op.shiftId, op.kind))
   }
+}
+
+/** The last empty place of a kind on a shift: the one "−" takes away. */
+export function emptyPlaceOf(
+  board: WeekBoard,
+  shiftId: number,
+  kind: PlaceKind,
+): number {
+  const shift = board.shifts.find(candidate => candidate.shift_id === shiftId)
+  const empty = shift?.places.filter(
+    place => place.kind === kind && place.assignment === null,
+  )
+  const last = empty?.at(-1)
+  if (!last)
+    throw new RefusedError(
+      "Alle plassene av denne typen er i bruk. Ta personen av først.",
+    )
+  return last.slot_id
 }
 
 export interface UndoEntry {

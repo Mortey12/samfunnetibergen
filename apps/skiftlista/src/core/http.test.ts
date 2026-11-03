@@ -297,6 +297,32 @@ describe("writes", () => {
     expect(calls[0].init.body).toBeUndefined()
   })
 
+  it("addPlace: POST on the shift with the kind", async () => {
+    const { api, calls, board } = await setup()
+    await api.addPlace(board, 1, "skjenker")
+
+    expect(calls[0].url).toBe(
+      `${BASE}/shifts/1/places?group_id=7&week_start=2026-11-02`,
+    )
+    expect(calls[0].init.method).toBe("POST")
+    expect(headersOf(calls[0])).toMatchObject({
+      "X-CSRF-Token": "tok",
+      "If-Match": "abc",
+    })
+    expect(bodyOf(calls[0])).toEqual({ kind: "skjenker" })
+  })
+
+  it("removePlace: DELETE on the real slot, not the box", async () => {
+    const { api, calls, board } = await setup()
+    await api.removePlace(board, appPlaceId(81, 1))
+
+    expect(calls[0].init.method).toBe("DELETE")
+    expect(calls[0].url).toBe(
+      `${BASE}/slots/81/seat?group_id=7&week_start=2026-11-02`,
+    )
+    expect(calls[0].init.body).toBeUndefined()
+  })
+
   it("setStatus: PUT on the week, the bar in the query", async () => {
     const { api, calls, board } = await setup()
     await api.setStatus(board, "published")

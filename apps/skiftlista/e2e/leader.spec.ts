@@ -387,3 +387,95 @@ test("on a laptop the place panel is beside the grid, not a sheet", async ({
   await expect(page.locator("#place-panel")).toBeVisible()
   await expect(page.getByRole("dialog")).toHaveCount(0)
 })
+
+// ---- plus and minus on the number of places ----------------------------------------------------
+
+const thursdaySkjenker = (page: Page) =>
+  place(page, /^Skjenker torsdag 3\. desember, Dagskift/)
+const thursdayLeaderPlace = (page: Page) =>
+  place(page, /^Skiftleder torsdag 3\. desember, Dagskift/)
+const moreThursday = (page: Page) =>
+  page.getByRole("button", {
+    name: "Flere skjenker, torsdag 3. desember, Dagskift",
+  })
+const fewerThursday = (page: Page) =>
+  page.getByRole("button", {
+    name: "Færre skjenker, torsdag 3. desember, Dagskift",
+  })
+
+test("plus: adds a place, announces it, keeps focus on +, and Ctrl+Z takes it away", async ({
+  page,
+}) => {
+  const before = await thursdaySkjenker(page).count()
+  await moreThursday(page).click()
+
+  await expect(status(page)).toContainText("Ny plass som skjenker")
+  await expect(thursdaySkjenker(page)).toHaveCount(before + 1)
+  await expect(moreThursday(page)).toBeFocused()
+
+  await page.keyboard.press("Control+z")
+  await expect(status(page)).toContainText("Plassen er fjernet")
+  await expect(thursdaySkjenker(page)).toHaveCount(before)
+})
+
+test("minus: removes an empty place, never a person, and the row stays at zero", async ({
+  page,
+}) => {
+  const before = await thursdaySkjenker(page).count()
+  expect(before).toBeGreaterThan(0)
+  // Put somebody on the first place: minus must leave that place alone.
+  await person(page, "Emil T.").click()
+  await thursdaySkjenker(page).first().click()
+  await expect(status(page)).toContainText("Emil T. er satt opp som")
+
+  for (let i = 0; i < before - 1; i++) await fewerThursday(page).click()
+  await expect(thursdaySkjenker(page)).toHaveCount(1)
+  await expect(thursdaySkjenker(page)).toContainText("Emil T.")
+  // Nothing empty is left: minus is switched off but still there and focusable.
+  await expect(fewerThursday(page)).toHaveAttribute("aria-disabled", "true")
+  // Playwright treats aria-disabled as not clickable; force it like a user would.
+  await fewerThursday(page).click({ force: true })
+  await expect(thursdaySkjenker(page)).toHaveCount(1)
+})
+
+test("minus all the way down to zero leaves a plus that works", async ({
+  page,
+}) => {
+  const before = await thursdaySkjenker(page).count()
+  for (let i = 0; i < before; i++) await fewerThursday(page).click()
+  await expect(thursdaySkjenker(page)).toHaveCount(0)
+  await expect(moreThursday(page)).toBeVisible()
+  await moreThursday(page).click()
+  await expect(thursdaySkjenker(page)).toHaveCount(1)
+})
+
+test("there is no plus or minus for the skiftleder place or for Opplæring", async ({
+  page,
+}) => {
+  await expect(
+    page.getByRole("button", { name: /^(Flere|Færre) skiftleder/ }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: /^(Flere|Færre) opplæring/ }),
+  ).toHaveCount(0)
+  await thursdayLeaderPlace(page).click()
+  await expect(page.locator("#place-panel")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Fjern denne plassen" }),
+  ).toHaveCount(0)
+})
+
+test("plus and minus are not on the printed page", async ({ page }) => {
+  await page.emulateMedia({ media: "print" })
+  await expect(moreThursday(page)).toBeHidden()
+})
+
+test("axe passes with the plus and minus buttons on the page", async ({
+  page,
+}) => {
+  await moreThursday(page).focus()
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze()
+  expect(results.violations.map(v => `${v.id}: ${v.nodes.length}`)).toEqual([])
+})

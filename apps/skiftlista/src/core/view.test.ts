@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { buildBoard, createStore, FIRST_WEEK, minutesBetween } from "./fake"
-import { filterPeople, fold, hoursText, matches, summarize } from "./view"
+import {
+  addableKinds,
+  filterPeople,
+  fold,
+  hoursText,
+  matches,
+  summarize,
+} from "./view"
 
 describe("search", () => {
   it("folds å but keeps æ and ø", () => {
@@ -81,5 +88,23 @@ describe("ledige", () => {
       .filter(place => !place.assignment)
     expect(empty.length).toBeGreaterThan(0)
     expect(summarize(board).open.length).toBeGreaterThanOrEqual(empty.length)
+  })
+})
+
+describe("what plus offers", () => {
+  it("is Skjenker for a bar, never Skiftleder or Opplæring", () => {
+    const board = buildBoard(createStore(), 11, FIRST_WEEK)
+    expect(addableKinds(board)).toEqual(["skjenker"])
+  })
+
+  it("is Kokk, not Skjenker, where the bar has kokk places (the kitchen)", () => {
+    const board = buildBoard(createStore(), 11, FIRST_WEEK)
+    board.shifts[0].places.push({
+      slot_id: 99999,
+      kind: "kokk",
+      assignment: null,
+      suggestion: null,
+    })
+    expect(addableKinds(board)).toEqual(["kokk"])
   })
 })
