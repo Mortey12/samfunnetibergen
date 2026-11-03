@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port 3190 --strictPort",
     "build": "vite build",
+    "build:demo": "VITE_LEADER_API=http vite build --outDir dist-demo --emptyOutDir && cp demo/vercel.json dist-demo/vercel.json",
     "preview": "vite preview --port 3190",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
     "test": "vitest run",
