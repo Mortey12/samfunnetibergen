@@ -133,19 +133,79 @@ async function readJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T
 }
 
-const NOT_BUILT =
-  "Å endre skiftlista mot Personal er ikke bygd ennå. Du kan bare se uka."
+interface WireWriteResult {
+  message: string
+  warnings: Note[]
+  board: WireBoard
+}
 
+/**
+ * Reads and writes against Personal. A write sends, besides the body:
+ *
+ * - `X-CSRF-Token`: the token `GET /me` handed out (the cookie it must match
+ *   is HttpOnly, so only this code can send it back);
+ * - `If-Match`: the `version` of the week the leader saw, so a week another
+ *   leader changed meanwhile answers 409 instead of being overwritten;
+ * - `confirmed`: the leader accepted the big warning for a person who lacks
+ *   what the place needs. The browser adds `Origin` itself.
+ *
+ * Personal refuses with `{ detail }` in Norwegian; that text is shown as is,
+ * and the page then reloads the week (see `execute` in App.svelte).
+ */
 export function createHttpApi(fetchFn: typeof fetch = fetch): LeaderApi {
-  const refuse = async (): Promise<WriteResult> => {
-    throw new RefusedError(NOT_BUILT)
+  let csrfToken = ""
+
+  async function write(
+    method: "POST" | "PUT" | "DELETE",
+    path: string,
+    board: WeekBoard,
+    options: {
+      body?: unknown
+      query?: Record<string, string>
+      week?: boolean
+    } = {},
+  ): Promise<WriteResult> {
+    const query = new URLSearchParams({
+      group_id: String(board.bar.id),
+      ...(options.week === false ? {} : { week_start: board.week_start }),
+      ...options.query,
+    })
+    const response = await fetchFn(`${BASE}${path}?${query}`, {
+      method,
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+        "If-Match": board.version,
+      },
+      body:
+        options.body === undefined ? undefined : JSON.stringify(options.body),
+    })
+    const result = await readJson<WireWriteResult>(response)
+    return {
+      message: result.message,
+      warnings: result.warnings,
+      board: toBoard(result.board),
+    }
   }
+
+  /** The assignment's place in Personal's terms (the slot, not the box). */
+  function slotOfAssignment(board: WeekBoard, assignmentId: number): number {
+    for (const shift of board.shifts)
+      for (const place of shift.places)
+        if (place.assignment?.assignment_id === assignmentId)
+          return realSlot(place.slot_id)
+    throw new RefusedError("Plassen finnes ikke lenger. Siden oppdateres.")
+  }
+
   return {
     async me(): Promise<LeaderMe> {
       const response = await fetchFn(`${BASE}/me`, {
         credentials: "same-origin",
       })
-      return readJson<LeaderMe>(response)
+      const me = await readJson<LeaderMe>(response)
+      csrfToken = me.csrf_token
+      return me
     },
     async week(groupId: number, weekStart: string): Promise<WeekBoard> {
       const response = await fetchFn(
@@ -154,11 +214,38 @@ export function createHttpApi(fetchFn: typeof fetch = fetch): LeaderApi {
       )
       return toBoard(await readJson<WireBoard>(response))
     },
-    place: refuse,
-    replace: refuse,
-    move: refuse,
-    swap: refuse,
-    remove: refuse,
-    setStatus: refuse,
+    place: (board, slotId, volunteerId, confirmed = false) =>
+      write("POST", "/placements", board, {
+        body: {
+          slot_id: realSlot(slotId),
+          volunteer_id: volunteerId,
+          confirmed,
+        },
+      }),
+    replace: async (board, assignmentId, volunteerId, confirmed = false) =>
+      write("PUT", `/placements/${assignmentId}`, board, {
+        body: {
+          slot_id: slotOfAssignment(board, assignmentId),
+          volunteer_id: volunteerId,
+          confirmed,
+        },
+      }),
+    move: (board, assignmentId, toSlotId, confirmed = false) =>
+      write("POST", `/placements/${assignmentId}/move`, board, {
+        body: { slot_id: realSlot(toSlotId), confirmed },
+      }),
+    swap: (board, a, b) =>
+      write("POST", "/placements/swap", board, {
+        body: { assignment_a: a, assignment_b: b, confirmed: false },
+      }),
+    remove: async (board, assignmentId) =>
+      write("DELETE", `/placements/${assignmentId}`, board, {
+        query: { slot_id: String(slotOfAssignment(board, assignmentId)) },
+      }),
+    setStatus: (board, status) =>
+      write("PUT", `/weeks/${board.week_start}/status`, board, {
+        body: { status },
+        week: false,
+      }),
   }
 }

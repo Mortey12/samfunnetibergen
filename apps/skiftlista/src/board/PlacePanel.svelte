@@ -220,8 +220,7 @@ function pick(candidate: Candidate) {
       </div>
     {/each}
     <p class="text-xs text-foreground-muted">
-      «Vis andre» (folk fra søsterbarer med riktig godkjenning) kommer i L2b og
-      trenger et nytt endepunkt.
+      Å vise folk fra andre barer med riktig godkjenning kommer senere.
     </p>
   </div>
 </section>

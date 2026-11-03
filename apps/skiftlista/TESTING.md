@@ -648,7 +648,7 @@ You should see:
 
 ## Part 7 (optional): See real demo data from Personal
 
-Until now the page used invented people that live only in the browser. Here the page reads the week from Personal (a separate system), through the same login Personal already has. The people and shifts are Personal's demo data, not real people. You can only look: changing the week is not built yet.
+Until now the page used invented people that live only in the browser. Here the page reads the week from Personal (a separate system), through the same login Personal already has. The people and shifts are Personal's demo data, not real people. Part 7 is for looking; Part 8 changes the week, and the changes are saved in Personal's demo database (every change can be undone with Ctrl and Z).
 
 You need three Ubuntu windows. If you started the page in 1.3, stop it first (Ctrl and C in that window).
 
@@ -704,7 +704,7 @@ Do this:
 You should see:
 
 - The page with four bars at the top: Grøndahls, Halvtimen, Kjøkken and Stjerne. "Dev Admin" at the top right.
-- At the bottom, the small text says "Leser fra Personal. Å endre uka er ikke bygd ennå."
+- At the bottom, the small text says "Leser fra og lagrer i Personal. Alt du endrer lagres med en gang."
 - The address in Chrome now ends with something like ?api=http&bar=9&uke=2026-11-02: the bar and week are in the address.
 - A grid with names that are not the invented ones from before. (On the bar Stjerne, for example, William Lie and Live Moen.)
 - On Stjerne week 45 (uke=2026-11-02), the round button says "5 ledige". The grid shows 7 empty boxes: the two empty "Opplæring" boxes are not counted, because a trainee is an extra and not something the shift needs. Click "5 ledige" and the box on the right opens one of the places that need someone.
@@ -727,17 +727,15 @@ You should see:
 
 - [ ] It matched
 
-### 7.5 What the page says about empty places and hours
+### 7.5 Hours
 
 Do this:
 
-1. On the Stjerne week 45 (uke=2026-11-02), find the chips below the title. Click a person in "Folk denne uka" who has a shift (look for a line with "t" for hours, for example "1 uka · 1 mnd · 6 t").
-2. Click a place in the grid, then try the red button "Gjør til utkast" (or "Publiser uka").
+1. On the Stjerne week 45 (uke=2026-11-02), look in "Folk denne uka" for a person who has a shift (a line with "t" for hours, for example "1 uka · 1 mnd · 6 t").
 
 You should see:
 
-- Step 1: the number of hours is the planned length of the shifts the person is coming to.
-- Step 2: a message in red that says changing the week against Personal is not built yet. Nothing is changed.
+- The number of hours is the planned length of the shifts the person is coming to (people with no shift show no hours).
 
 - [ ] It matched
 
@@ -760,6 +758,113 @@ You should see:
 
 Press Ctrl and C in each of the three Ubuntu windows.
 
+## Part 8 (optional): Change the week on real demo data
+
+This changes Personal's demo database. Nothing here is real, and each change can be undone. Do Part 7 first (Personal and the page must be running and you must be logged in).
+
+Use the bar Stjerne and week 47: open `http://localhost:3190/?api=http&bar=7&uke=2026-11-16`. The round button should say "5 ledige".
+
+### 8.1 Place a person and undo
+
+Do this:
+
+1. Click "Uten skift" in the box on the right, and click the first person in the list.
+2. Click one of the places that now says "Sett inn ..." (without "Krever bekreftelse").
+3. Press Ctrl and Z at the same time.
+
+You should see:
+
+- Step 2: a green message "... er satt opp som ...", the place shows the name, and the round button changes to "4 ledige".
+- Step 3: the message says the person is taken off, the place is free again, and the button says "5 ledige" again.
+
+- [ ] It matched
+
+### 8.2 The popup on real data
+
+Do this:
+
+1. Click "Uten skift", then click a person in the list who does NOT have "SL" to the right of the name.
+2. Click a Skiftleder place that says "Krever bekreftelse".
+3. Read the popup, then click "Sett inn likevel".
+4. Press Ctrl and Z.
+
+You should see:
+
+- Step 2: the popup with a red border. It lists red lines, for example "Kun for godkjente skiftledere".
+- Step 3: the person is placed, with a message that may add "Advarsel: ...".
+- Step 4: the person is taken off again.
+
+- [ ] It matched
+
+### 8.3 Two leaders at once
+
+Do this:
+
+1. Open the same address in two Chrome tabs (week 47, bar 7). Call them tab 1 and tab 2.
+2. In tab 1, place any person on any free place (as in 8.1 steps 1 and 2).
+3. In tab 2, without reloading, place someone on another free place.
+4. In tab 2, try the same again.
+5. Undo in tab 1 (Ctrl and Z) so the data is as before.
+
+You should see:
+
+- Step 3: a red message "En annen leder har endret uka. Siden er oppdatert, prøv igjen." Nothing is placed, and tab 2 now shows what tab 1 did.
+- Step 4: this time it works.
+
+- [ ] It matched
+
+### 8.4 Move and swap
+
+Do this:
+
+1. Click a person who is placed on a Skjenker place, and click "Flytt eller bytt" in the box on the right.
+2. Click an empty Skjenker place that says "Flytt hit".
+3. Press Ctrl and Z.
+4. Click a person placed on a Skjenker place, click "Flytt eller bytt", and click another Skjenker place that says "Bytt med ...".
+5. Press Ctrl and Z.
+
+You should see:
+
+- Step 2: "... er flyttet til ...", and the person is on the new place.
+- Step 3: the person is back on the old place.
+- Step 4: "... og ... har byttet plass."
+- Step 5: they are back where they were.
+
+- [ ] It matched
+
+### 8.5 Publish and make a draft
+
+Do this:
+
+1. Open `http://localhost:3190/?api=http&bar=7&uke=2026-11-23` (week 48, a coming week).
+2. Click the red button "Publiser uka".
+3. Click "Gjør til utkast".
+4. Open `http://localhost:3190/?api=http&bar=7&uke=2026-11-02` (week 45, which has already started).
+5. Click "Gjør til utkast".
+
+You should see:
+
+- Step 2: a message "Uke 48 for Stjerne: publisert ...", and the label next to the week number says "Publisert".
+- Step 3: "Uke 48 for Stjerne: åpen for ønsker." and the label says "Utkast".
+- Step 5: a red message from Personal: "Uka er i gang eller over, og kan ikke åpnes for ønsker. Bare kommende uker kan åpnes." The week stays published.
+
+- [ ] It matched
+
+### 8.6 A leader with one bar only
+
+Do this:
+
+1. Open `http://localhost:8001/login` and log in with `stjerne.leder@kvarteret.dev` and `dev-password`. (This copy of Personal is started with `DEV_ADMIN_EMAIL=stjerne.leder@kvarteret.dev DEV_ADMIN_PASSWORD=dev-password uv run uvicorn app.main:create_app --factory --port 8001` in `~/kvarteret/kvarteret-personal`, if it is not running.)
+2. Open `http://localhost:3190/?api=http`.
+3. Try opening `http://localhost:3190/?api=http&bar=9` (Grøndahls).
+
+You should see:
+
+- Step 2: only one bar at the top, Stjerne.
+- Step 3: you still see Stjerne. A leader cannot open or change a bar they have no access to.
+
+- [ ] It matched
+
 ## Part 6: Tell us what you found
 
 For each problem, write down four things:
@@ -778,9 +883,9 @@ Things that are not finished yet, so you do not need to report them:
 
 - There is no real login. The page always says "Demo-leder".
 - Nothing is saved. Reloading the page (F5) starts over.
-- The button "Lag forslag for uka" is grey on purpose. Suggestions come later.
+- The button "Lag forslag for uka" is grey on purpose, and its hover text says "Kommer senere". Suggestions come later.
 - The text about "Vis andre" in the box on the right is a placeholder for something that comes later.
-- Real data (Part 7) can only be looked at. Placing, moving, removing and publishing against Personal are not built yet, so those buttons give a red message there. The popup in 2.20 and everything else in Parts 2 to 4 work on the invented data.
+- Not built yet on real data: "Lag forslag for uka", plus and minus on the number of places in a shift, and a yellow "Endret etter publisering" label (Personal does not have that state).
 - On a phone, the box "Folk denne uka" is shown below the grid. A special phone layout for the whole page comes later (only the place sheet, test 4.4, is done).
 
 ## For developers (optional): the automatic checks
@@ -801,7 +906,7 @@ Run the small tests:
 
     npm run test:skiftlista
 
-You should see: It says Tests 26 passed (26).
+You should see: It says Tests 36 passed (36).
 
 Go to the app folder:
 
@@ -815,4 +920,4 @@ Run the browser tests (they click through the page by themselves, about 15 secon
 
     npx playwright test
 
-You should see: It ends with 46 passed. (37 run in a laptop-sized window and 9 in a phone-sized window; the computer switches the window size by itself. Some of them pretend to be Personal, so they work without it.)
+You should see: It ends with 50 passed. (41 run in a laptop-sized window and 9 in a phone-sized window; the computer switches the window size by itself. Some of them pretend to be Personal, so they work without it.)

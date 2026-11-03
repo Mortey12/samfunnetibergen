@@ -186,11 +186,154 @@ describe("the http client", () => {
     )
     await expect(api.me()).rejects.toThrow("Personal svarte 502")
   })
+})
 
-  it("does not write yet and says so", async () => {
-    const api = createHttpApi(reply(200, {}))
-    await expect(
-      api.place(toBoard(wireBoard()), 8101, 4),
-    ).rejects.toBeInstanceOf(RefusedError)
+describe("writes", () => {
+  interface Call {
+    url: string
+    init: RequestInit
+  }
+
+  /** An api whose fetch records every call and answers `status` with `body`. */
+  async function setup(status = 200, body: unknown = null) {
+    const calls: Call[] = []
+    const api = createHttpApi((async (url: string, init: RequestInit = {}) => {
+      calls.push({ url, init })
+      if (url.endsWith("/me"))
+        return new Response(
+          JSON.stringify({
+            name: "Leder",
+            role: "Admin",
+            csrf_token: "tok",
+            bars: [],
+          }),
+          { status: 200 },
+        )
+      return new Response(
+        JSON.stringify(
+          body ?? { message: "Gjort.", warnings: [], board: wireBoard() },
+        ),
+        { status },
+      )
+    }) as typeof fetch)
+    await api.me()
+    calls.length = 0
+    return { api, calls, board: toBoard(wireBoard()) }
+  }
+
+  const headersOf = (call: Call) => call.init.headers as Record<string, string>
+  const bodyOf = (call: Call) => JSON.parse(String(call.init.body))
+
+  it("place: POST with the token, the version, the real slot id and confirmed", async () => {
+    const { api, calls, board } = await setup()
+    const result = await api.place(board, appPlaceId(81, 1), 4)
+
+    expect(calls[0].url).toBe(
+      `${BASE}/placements?group_id=7&week_start=2026-11-02`,
+    )
+    expect(calls[0].init.method).toBe("POST")
+    expect(calls[0].init.credentials).toBe("same-origin")
+    expect(headersOf(calls[0])).toMatchObject({
+      "X-CSRF-Token": "tok",
+      "If-Match": "abc",
+    })
+    expect(bodyOf(calls[0])).toEqual({
+      slot_id: 81,
+      volunteer_id: 4,
+      confirmed: false,
+    })
+    // The answer is turned into the app's own place ids.
+    expect(result.message).toBe("Gjort.")
+    expect(result.board.shifts[0].places[0].slot_id).toBe(8100)
+  })
+
+  it("place: confirmed is sent when the leader accepted the warning", async () => {
+    const { api, calls, board } = await setup()
+    await api.place(board, appPlaceId(80, 0), 4, true)
+    expect(bodyOf(calls[0]).confirmed).toBe(true)
+  })
+
+  it("replace: sends the slot of the assignment, not of the box", async () => {
+    const { api, calls, board } = await setup()
+    await api.replace(board, 9, 4, false)
+
+    expect(calls[0].url).toContain(`${BASE}/placements/9?`)
+    expect(calls[0].init.method).toBe("PUT")
+    expect(bodyOf(calls[0])).toEqual({
+      slot_id: 81,
+      volunteer_id: 4,
+      confirmed: false,
+    })
+  })
+
+  it("move: sends the real target slot", async () => {
+    const { api, calls, board } = await setup()
+    await api.move(board, 9, appPlaceId(80, 0), true)
+
+    expect(calls[0].url).toContain(`${BASE}/placements/9/move?`)
+    expect(bodyOf(calls[0])).toEqual({ slot_id: 80, confirmed: true })
+  })
+
+  it("swap: sends both assignments and never confirms", async () => {
+    const { api, calls, board } = await setup()
+    await api.swap(board, 9, 10)
+
+    expect(calls[0].url).toContain(`${BASE}/placements/swap?`)
+    expect(bodyOf(calls[0])).toEqual({
+      assignment_a: 9,
+      assignment_b: 10,
+      confirmed: false,
+    })
+  })
+
+  it("remove: DELETE with the place the page showed", async () => {
+    const { api, calls, board } = await setup()
+    await api.remove(board, 9)
+
+    expect(calls[0].init.method).toBe("DELETE")
+    expect(calls[0].url).toBe(
+      `${BASE}/placements/9?group_id=7&week_start=2026-11-02&slot_id=81`,
+    )
+    expect(calls[0].init.body).toBeUndefined()
+  })
+
+  it("setStatus: PUT on the week, the bar in the query", async () => {
+    const { api, calls, board } = await setup()
+    await api.setStatus(board, "published")
+
+    expect(calls[0].url).toBe(`${BASE}/weeks/2026-11-02/status?group_id=7`)
+    expect(calls[0].init.method).toBe("PUT")
+    expect(bodyOf(calls[0])).toEqual({ status: "published" })
+  })
+
+  it("a refusal (409) shows Personal's own text", async () => {
+    const { api, board } = await setup(409, {
+      detail: "En annen leder har endret uka. Siden er oppdatert, prøv igjen.",
+    })
+    await expect(api.place(board, appPlaceId(81, 1), 4)).rejects.toThrow(
+      "En annen leder har endret uka",
+    )
+  })
+
+  it("a missing or expired token (403) says to reload", async () => {
+    const { api, board } = await setup(403, {
+      detail: "Sikkerhetskoden mangler eller er utløpt. Last siden på nytt.",
+    })
+    await expect(api.remove(board, 9)).rejects.toThrow("Last siden på nytt")
+  })
+
+  it("not signed in on a write is the sign-in error", async () => {
+    const { api, board } = await setup(401, {
+      detail: "Authentication required.",
+    })
+    await expect(api.place(board, appPlaceId(81, 1), 4)).rejects.toBeInstanceOf(
+      NotSignedInError,
+    )
+  })
+
+  it("replace or remove on a place that is gone is refused before any request", async () => {
+    const { api, calls, board } = await setup()
+    await expect(api.remove(board, 12345)).rejects.toBeInstanceOf(RefusedError)
+    expect(calls).toHaveLength(0)
   })
 })

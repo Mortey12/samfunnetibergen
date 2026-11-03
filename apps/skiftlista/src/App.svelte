@@ -638,7 +638,7 @@ function problemTitle(refs: PlaceRef[]): string {
               type="button"
               class={cn(selectionControlVariants(), "font-base")}
               disabled
-              title="Kommer i L3"
+              title="Kommer senere"
             >
               Lag forslag for uka
             </button>
@@ -788,7 +788,7 @@ function problemTitle(refs: PlaceRef[]): string {
         />
         <footer class="noprint text-xs text-foreground-muted">
           {live
-            ? "Leser fra Personal. Å endre uka er ikke bygd ennå."
+            ? "Leser fra og lagrer i Personal. Alt du endrer lagres med en gang."
             : "Prototype med oppdiktede data. Ingenting lagres."}
           Tastatur: Tab mellom
           plasser, Enter velger, Escape går ett steg tilbake, Ctrl+Z angrer.

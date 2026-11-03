@@ -16,17 +16,23 @@ From the repository root:
 
 Open http://localhost:3190.
 
-## Live data (read only)
+## Live data
 
 `src/core/http.ts` is a `LeaderApi` that reads from Personal's leader API
 (`GET /api/v1/leader/shifts/me` and `/weeks/{week_start}?group_id=`) through the
-same-origin path `/personal/*`. In development Vite proxies `/personal/*`,
+same-origin path `/personal/*`, and writes through the same path. In development Vite proxies `/personal/*`,
 `/login`, `/logout` and `/static/*` to a local Personal (`http://localhost:8000`,
 or `PERSONAL_URL`). Log in at Personal first, then open
 `http://localhost:3190/?api=http`. The bar and week live in the address
-(`?bar=7&uke=2026-11-02`). Writes are not built: placing, moving, removing and
-publishing answer "ikke bygd ennå". `TESTING.md` part 7 has the click-by-click
-steps.
+(`?bar=7&uke=2026-11-02`). `TESTING.md` parts 7 and 8 have the click-by-click
+steps (look, then change the week).
+
+Writes (`placements`, `placements/swap`, `weeks/{week}/status`) send
+`X-CSRF-Token` (from `GET /me`), `If-Match` (the board's `version`) and, after
+the popup, `confirmed`. Personal checks the `Origin` against its
+`LEADER_APP_ORIGINS` setting, so a local Personal needs
+`LEADER_APP_ORIGINS=http://localhost:3190` in its `.env`. A refusal (409) shows
+Personal's own text and the page reads the week again.
 
 Personal gives a slot with room for several people ONE slot id, so `toBoard()`
 in `http.ts` gives every box its own app id `slot_id * 100 + seat` and copies a

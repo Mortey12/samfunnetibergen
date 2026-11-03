@@ -5,7 +5,8 @@ import { expect, type Page, test } from "@playwright/test"
 // The page in "live" mode (?api=http): it reads from Personal through
 // /personal/*. These tests answer those requests with a recorded real response
 // (demo data from a local Personal, bar Stjerne, week 45), so they need no
-// Personal. Writing is not built yet; the tests check that it says so.
+// Personal. Writes are answered the same way and recorded, so the tests can check what the
+// page sent (method, token, version, real slot id, confirmed).
 
 const fixture = (name: string) =>
   JSON.parse(
@@ -16,18 +17,94 @@ const WEEK = fixture("week-stjerne-45.json")
 
 const places = (page: Page) => page.locator("[data-slot]")
 
-async function mockPersonal(page: Page) {
+interface Write {
+  method: string
+  path: string
+  headers: Record<string, string>
+  body: Record<string, unknown> | null
+}
+
+/**
+ * Answers Personal's leader API. Reads get the recorded week (for the week in
+ * the address); every write is recorded in `writes` and answered by
+ * `onWrite` (default: 200 with the recorded week).
+ */
+async function mockPersonal(
+  page: Page,
+  onWrite?: (write: Write) => { status: number; json: unknown },
+) {
   const asked: string[] = []
+  const writes: Write[] = []
   await page.route("**/personal/api/v1/leader/shifts/**", async route => {
-    const url = new URL(route.request().url())
+    const request = route.request()
+    const url = new URL(request.url())
     asked.push(url.pathname + url.search)
     if (url.pathname.endsWith("/me")) return route.fulfill({ json: ME })
-    // The week asked for in the address, so the page and the address agree.
-    const weekStart = url.pathname.split("/").pop()
-    return route.fulfill({ json: { ...WEEK, week_start: weekStart } })
+    if (request.method() === "GET") {
+      // The week asked for in the address, so the page and the address agree.
+      const weekStart = url.pathname.split("/").pop()
+      return route.fulfill({ json: { ...WEEK, week_start: weekStart } })
+    }
+    const write: Write = {
+      method: request.method(),
+      path:
+        url.pathname.replace("/personal/api/v1/leader/shifts", "") + url.search,
+      headers: request.headers(),
+      body: request.postDataJSON(),
+    }
+    writes.push(write)
+    const answer = onWrite?.(write) ?? {
+      status: 200,
+      json: { message: "Gjort.", warnings: [], board: WEEK },
+    }
+    return route.fulfill({ status: answer.status, json: answer.json })
   })
-  return asked
+  return Object.assign(asked, { writes })
 }
+
+interface FixturePlace {
+  slot_id: number
+  seat: number
+  kind: string
+  assignment: unknown
+}
+
+/** An empty skjenker box and a person who fits it without a popup. */
+function easyPlacing() {
+  for (const shift of WEEK.shifts) {
+    for (const place of shift.places as FixturePlace[]) {
+      if (place.assignment || place.kind !== "skjenker") continue
+      for (const person of WEEK.people) {
+        const fit = WEEK.fit[person.volunteer_id]?.[place.slot_id]
+        if (fit?.ok && !fit.needs_confirmation)
+          return { person, place, boxId: place.slot_id * 100 + place.seat }
+      }
+    }
+  }
+  throw new Error("fixture has no easy placing")
+}
+
+/** An empty skiftleder box and a person who needs the popup for it. */
+function popupPlacing() {
+  for (const shift of WEEK.shifts) {
+    for (const place of shift.places as FixturePlace[]) {
+      if (place.assignment || place.kind !== "skiftleder") continue
+      for (const person of WEEK.people) {
+        const fit = WEEK.fit[person.volunteer_id]?.[place.slot_id]
+        if (fit?.ok && fit.needs_confirmation)
+          return { person, place, boxId: place.slot_id * 100 + place.seat }
+      }
+    }
+  }
+  throw new Error("fixture has no popup placing")
+}
+
+const personButton = (page: Page, name: string) =>
+  page
+    .getByRole("list", { name: "Personer" })
+    .getByRole("button")
+    .filter({ hasText: name })
+    .first()
 
 test("opens the week named in the address and keeps bar and week in it", async ({
   page,
@@ -41,7 +118,7 @@ test("opens the week named in the address and keeps bar and week in it", async (
       .getByRole("navigation", { name: "Barer" })
       .getByRole("button", { name: "Stjerne" }),
   ).toHaveAttribute("aria-current", "page")
-  await expect(page.getByText("Leser fra Personal")).toBeVisible()
+  await expect(page.getByText("lagrer i Personal")).toBeVisible()
   expect(asked).toContain(
     "/personal/api/v1/leader/shifts/weeks/2026-11-02?group_id=7",
   )
@@ -137,15 +214,109 @@ test("someone without approval can be offered with the red warning and the popup
   )
 })
 
-test("changing the week says that it is not built yet", async ({ page }) => {
-  await mockPersonal(page)
+test("placing a person sends token, version and the real slot id", async ({
+  page,
+}) => {
+  const asked = await mockPersonal(page)
   await page.goto("/?api=http&bar=7&uke=2026-11-02")
   await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
-  // The recorded week is published, so the button offers to make it a draft.
-  await page.getByRole("button", { name: "Gjør til utkast" }).click()
+  const { person, place, boxId } = easyPlacing()
+
+  await personButton(page, person.name).click()
+  await page.locator(`[data-slot="${boxId}"]`).click()
+
   await expect(
-    page.getByRole("status").filter({ hasText: "ikke bygd ennå" }),
+    page.getByRole("status").filter({ hasText: "Gjort." }),
   ).toBeVisible()
+  expect(asked.writes).toHaveLength(1)
+  const write = asked.writes[0]
+  expect(write.method).toBe("POST")
+  expect(write.path).toBe("/placements?group_id=7&week_start=2026-11-02")
+  expect(write.headers["x-csrf-token"]).toBe("fixture")
+  expect(write.headers["if-match"]).toBe(WEEK.version)
+  expect(write.body).toEqual({
+    slot_id: place.slot_id,
+    volunteer_id: person.volunteer_id,
+    confirmed: false,
+  })
+})
+
+test("the popup's Sett inn likevel sends confirmed", async ({ page }) => {
+  const asked = await mockPersonal(page)
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  const { person, place, boxId } = popupPlacing()
+
+  await personButton(page, person.name).click()
+  await page.locator(`[data-slot="${boxId}"]`).click()
+  // Nothing is sent before the leader answers the popup.
+  expect(asked.writes).toHaveLength(0)
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Sett inn likevel" })
+    .click()
+
+  await expect.poll(() => asked.writes.length).toBe(1)
+  expect(asked.writes[0].body).toEqual({
+    slot_id: place.slot_id,
+    volunteer_id: person.volunteer_id,
+    confirmed: true,
+  })
+})
+
+test("Avbryt in the popup sends nothing", async ({ page }) => {
+  const asked = await mockPersonal(page)
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  const { person, boxId } = popupPlacing()
+
+  await personButton(page, person.name).click()
+  await page.locator(`[data-slot="${boxId}"]`).click()
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Avbryt" })
+    .click()
+
+  await expect(page.getByRole("alertdialog")).toHaveCount(0)
+  expect(asked.writes).toHaveLength(0)
+})
+
+test("a refusal shows Personal's text and the week is read again", async ({
+  page,
+}) => {
+  const stale = "En annen leder har endret uka. Siden er oppdatert, prøv igjen."
+  const asked = await mockPersonal(page, () => ({
+    status: 409,
+    json: { detail: stale },
+  }))
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  const weekReads = () => asked.filter(url => url.includes("/weeks/")).length
+  const before = weekReads()
+  const { person, boxId } = easyPlacing()
+
+  await personButton(page, person.name).click()
+  await page.locator(`[data-slot="${boxId}"]`).click()
+
+  await expect(
+    page.getByRole("status").filter({ hasText: stale }),
+  ).toBeVisible()
+  await expect.poll(weekReads).toBeGreaterThan(before)
+})
+
+test("making the week a draft sends PUT status for the bar", async ({
+  page,
+}) => {
+  const asked = await mockPersonal(page)
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  // The recorded week is published, so the button offers a draft.
+  await page.getByRole("button", { name: "Gjør til utkast" }).click()
+
+  await expect.poll(() => asked.writes.length).toBe(1)
+  expect(asked.writes[0].method).toBe("PUT")
+  expect(asked.writes[0].path).toBe("/weeks/2026-11-02/status?group_id=7")
+  expect(asked.writes[0].body).toEqual({ status: "open" })
 })
 
 test("not signed in: a clear message with a link to Personal's login", async ({
