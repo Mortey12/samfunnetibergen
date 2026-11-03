@@ -389,6 +389,27 @@ You should see:
 
 - [ ] It matched
 
+### 2.19 The banner for a week that is not published
+
+Press F5 first, to start from the beginning.
+
+Do this:
+
+1. Look just below the big title "Uke 49" and the week buttons.
+2. Click the red button "Publiser uka".
+3. Click the button "Uten skift", click "Emil T.", and then click one of the places that says "Sett inn Emil". (This is a change after publishing, like in 2.15.)
+4. Click "Publiser uka" once more.
+
+You should see:
+
+- In step 1: a box with a dashed border and the text "Uka er ikke publisert. Folk ser ikke skiftene sine i appen før du trykker «Publiser uka»."
+- In step 2: the box is gone, and the label next to "Uke 49" says "Publisert".
+- In step 3: the box is back, now yellow, with the text "Uka er endret etter publisering. Trykk «Publiser uka» igjen når du er ferdig med endringene."
+- In step 4: the box is gone again.
+- The banner is not on the paper if you print (Ctrl and P): see 4.3.
+
+- [ ] It matched
+
 ## Part 3: Try it without a mouse
 
 Some leaders use only the keyboard. Put the mouse aside for these tests.
@@ -471,7 +492,7 @@ Do this:
 
 You should see:
 
-- The box "Folk denne uka" moves down below the grid.
+- The box "Folk denne uka" moves down below the grid. (This happens when the window is less than about 1280 pixels wide, or when you zoom in. On a laptop with the Windows display scale at 125 percent or more, you may see this layout even with the window full size.)
 - The grid can be scrolled sideways inside its own frame, but the page itself does not move sideways.
 - Nothing is cut off so you cannot read it.
 
@@ -507,6 +528,34 @@ You should see:
 - The preview shows the title and the grid with names.
 - It does not show the buttons or the box on the right.
 - All seven days fit on the paper, Mandag to Søndag, and the paper is turned sideways (landscape).
+
+- [ ] It matched
+
+### 4.4 A place on a narrow screen (the sheet)
+
+On a narrow window, a place does not open in the box on the right (it has moved down below the grid, and you would have to scroll to find it). Instead it opens in a panel that slides up over the page, called a sheet.
+
+Press F5 first, to start from the beginning.
+
+Do this:
+
+1. Make the window narrow as in 4.1 (or zoom in with Ctrl and + as in 4.2, until the people box has moved below the grid).
+2. Scroll the grid sideways, find any place that says Ledig, and click it.
+3. Look at the sheet. Then press Esc.
+4. Click the same place again. Click a name in the sheet.
+5. Click a place that already has a person (for example "Ingrid V." on Tirsdag), then click "Flytt eller bytt" in the sheet.
+6. Press Esc to cancel the move. Click a Ledig place again, then click once on the dimmed page above the sheet.
+7. Make the window wide again (or press Ctrl and 0), and click a Ledig place.
+
+You should see:
+
+- Step 2: a panel appears at the bottom of the window, with the rest of the page dimmed behind it. Its title is for example "Skiftleder, torsdag 3. desember", and under it are the lists Vil, Kan, Ikke svart and Kan ikke. There is an X button in the top right corner of the panel.
+- Step 3: the sheet goes away, and the thick coloured frame is back on the place you clicked.
+- Step 4: the sheet goes away by itself, a green message says the person is placed, and the place now shows the name.
+- Step 5: the sheet goes away and the orange box "Velg en ledig plass å flytte til ..." appears, so you can click where to move.
+- Step 6: Esc cancels the move. The sheet goes away when you click the dimmed page.
+- Step 7: on a wide window there is no sheet and no dimming: the place opens in the box on the right, as in 2.5.
+- While the sheet is open, pressing Tab again and again never goes to the grid behind it; it keeps cycling inside the sheet.
 
 - [ ] It matched
 
@@ -590,7 +639,7 @@ Things that are not finished yet, so you do not need to report them:
 - Nothing is saved. Reloading the page (F5) starts over.
 - The button "Lag forslag for uka" is grey on purpose. Suggestions come later.
 - The text about "Vis andre" in the box on the right is a placeholder for something that comes later.
-- On a phone, the box on the right is shown below the grid. A special phone layout comes later.
+- On a phone, the box "Folk denne uka" is shown below the grid. A special phone layout for the whole page comes later (only the place sheet, test 4.4, is done).
 
 ## For developers (optional): the automatic checks
 
@@ -624,4 +673,4 @@ Run the browser tests (they click through the page by themselves, about 15 secon
 
     npx playwright test
 
-You should see: It ends with 16 passed.
+You should see: It ends with 31 passed. (The first 22 run in a laptop-sized window and the last 9 in a phone-sized window; the computer switches the window size by itself.)

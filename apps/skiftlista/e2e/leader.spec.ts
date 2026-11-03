@@ -211,6 +211,17 @@ test("no automatic accessibility violations (axe, WCAG 2.1 AA)", async ({
   expect(results.violations.map(v => `${v.id}: ${v.nodes.length}`)).toEqual([])
 })
 
+test("axe also passes with a place panel open (small text, all four groups)", async ({
+  page,
+}) => {
+  await place(page, /^Skjenker torsdag 3\. desember, Dagskift/).click()
+  await expect(page.locator("#place-panel")).toBeVisible()
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze()
+  expect(results.violations.map(v => `${v.id}: ${v.nodes.length}`)).toEqual([])
+})
+
 test("narrow screen: the page itself never scrolls sideways", async ({
   page,
 }) => {
@@ -257,4 +268,37 @@ test("print: the whole week fits on a landscape page", async ({ page }) => {
   expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(1047)
   await expect(page.locator("#people-panel")).toBeHidden()
   await expect(page.getByRole("button", { name: "Publiser uka" })).toBeHidden()
+})
+
+test("an unpublished week says so, and the banner follows the status", async ({
+  page,
+}) => {
+  const banner = page.getByRole("region", { name: "Publisering" })
+  await expect(banner).toContainText("Uka er ikke publisert.")
+  await expect(banner).toContainText("Folk ser ikke skiftene sine i appen")
+
+  await page.getByRole("button", { name: "Publiser uka" }).click()
+  await expect(banner).toBeHidden()
+
+  // A change after publishing brings it back with other words.
+  await person(page, "Emil T.").click()
+  await places(page).filter({ hasText: "Sett inn Emil" }).first().click()
+  await expect(banner).toContainText("Uka er endret etter publisering.")
+  await expect(banner).toContainText("Trykk «Publiser uka» igjen")
+
+  await page.getByRole("button", { name: "Publiser uka" }).click()
+  await expect(banner).toBeHidden()
+})
+
+test("the banner is not printed", async ({ page }) => {
+  await page.emulateMedia({ media: "print" })
+  await expect(page.getByRole("region", { name: "Publisering" })).toBeHidden()
+})
+
+test("on a laptop the place panel is beside the grid, not a sheet", async ({
+  page,
+}) => {
+  await place(page, /^Skiftleder torsdag 3\. desember, Dagskift/).click()
+  await expect(page.locator("#place-panel")).toBeVisible()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
 })

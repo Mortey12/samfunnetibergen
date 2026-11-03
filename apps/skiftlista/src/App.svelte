@@ -39,6 +39,13 @@ import { buttonVariants } from "./lib/button"
 import { cn } from "./lib/cn"
 import SectionMark from "./lib/SectionMark.svelte"
 import { selectionControlVariants } from "./lib/selection-control"
+import { Sheet, SheetContent } from "./lib/sheet"
+
+const UNPUBLISHED_HELP: Record<"open" | "changed_after_publish", string> = {
+  open: "Folk ser ikke skiftene sine i appen før du trykker «Publiser uka».",
+  changed_after_publish:
+    "Trykk «Publiser uka» igjen når du er ferdig med endringene.",
+}
 
 interface Message {
   text: string
@@ -65,6 +72,11 @@ let showMissing = $state(false)
 // After an action, focus goes to the changed place (as on Personal's week
 // page). It waits for the render that shows the new week.
 let pendingFocus = $state<number | null>(null)
+// From 80rem (Tailwind's xl) the place panel sits beside the grid; below it
+// the panel opens in a sheet over the page. Same breakpoint as the grid's
+// two-column layout in the markup below.
+const wideQuery = window.matchMedia("(min-width: 80rem)")
+let wide = $state(wideQuery.matches)
 
 const selected = $derived(
   board && selectedId !== null ? (personById(board, selectedId) ?? null) : null,
@@ -86,6 +98,12 @@ const statusTone = $derived(
       ? "bg-answer-kan text-answer-kan-ink"
       : "bg-secondary-50 text-secondary-950",
 )
+
+$effect(() => {
+  const update = () => (wide = wideQuery.matches)
+  wideQuery.addEventListener("change", update)
+  return () => wideQuery.removeEventListener("change", update)
+})
 
 $effect(() => {
   api.me().then(result => {
@@ -206,6 +224,12 @@ function closePlace() {
   openSlot = null
 }
 
+function startMove(slotId: number) {
+  openSlot = null
+  moveFrom = slotId
+  pendingFocus = slotId
+}
+
 function changeWeek(start: string) {
   openSlot = null
   moveFrom = null
@@ -234,6 +258,8 @@ function onKeydown(event: KeyboardEvent) {
     return
   }
   if (event.key !== "Escape") return
+  // In the sheet, Bits UI closes it on Escape (and onOpenChange moves focus).
+  if (!wide && openSlot !== null && moveFrom === null) return
   if (typing && (typing as HTMLInputElement).value) return
   if (moveFrom !== null) {
     pendingFocus = moveFrom
@@ -382,6 +408,25 @@ function problemTitle(refs: PlaceRef[]): string {
               </button>
             </nav>
           </div>
+
+          {#if board.status !== "published"}
+            <section
+              aria-label="Publisering"
+              class={cn(
+                "noprint rounded-base border-2 border-dashed p-3 text-sm",
+                board.status === "open"
+                  ? "border-secondary bg-secondary-50 text-secondary-950"
+                  : "border-answer-kan-ink bg-answer-kan text-answer-kan-ink",
+              )}
+            >
+              <strong class="font-heading">
+                {board.status === "open"
+                  ? "Uka er ikke publisert."
+                  : "Uka er endret etter publisering."}
+              </strong>
+              {UNPUBLISHED_HELP[board.status]}
+            </section>
+          {/if}
 
           <div class="noprint flex flex-wrap items-center gap-2">
             {#if summary.problems.length}
@@ -533,18 +578,14 @@ function problemTitle(refs: PlaceRef[]): string {
           <aside
             class="noprint flex max-h-[36rem] min-h-0 flex-col xl:max-h-[calc(100dvh-14rem)]"
           >
-            {#if openRef}
+            {#if openRef && wide}
               <PlacePanel
                 {board}
                 {busy}
                 placeRef={openRef}
                 onClose={closePlace}
                 onOp={doOp}
-                onStartMove={slotId => {
-                  openSlot = null
-                  moveFrom = slotId
-                  pendingFocus = slotId
-                }}
+                onStartMove={startMove}
               />
             {:else}
               <PeoplePanel
@@ -563,6 +604,33 @@ function problemTitle(refs: PlaceRef[]): string {
             {/if}
           </aside>
         </main>
+        {#if !wide}
+          <!-- Narrow screens: the place opens in a sheet over the page. -->
+          <Sheet
+            open={openRef !== null}
+            onOpenChange={open => {
+              if (!open) closePlace()
+            }}
+          >
+            {#if openRef}
+              <SheetContent
+                labelledby="place-heading"
+                onOpenAutoFocus={event => event.preventDefault()}
+                onCloseAutoFocus={event => event.preventDefault()}
+              >
+                <PlacePanel
+                  {board}
+                  {busy}
+                  framed={false}
+                  placeRef={openRef}
+                  onClose={closePlace}
+                  onOp={doOp}
+                  onStartMove={startMove}
+                />
+              </SheetContent>
+            {/if}
+          </Sheet>
+        {/if}
         <footer class="noprint text-xs text-foreground-muted">
           Prototype med oppdiktede data. Ingenting lagres. Tastatur: Tab mellom
           plasser, Enter velger, Escape går ett steg tilbake, Ctrl+Z angrer.

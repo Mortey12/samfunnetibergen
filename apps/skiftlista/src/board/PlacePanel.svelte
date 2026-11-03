@@ -19,12 +19,22 @@ interface Props {
   board: WeekBoard
   placeRef: PlaceRef
   busy: boolean
+  /** false inside the narrow-screen sheet, which draws the frame itself */
+  framed?: boolean
   onClose: () => void
   onOp: (op: Op) => void
   onStartMove: (slotId: number) => void
 }
 
-let { board, placeRef, busy, onClose, onOp, onStartMove }: Props = $props()
+let {
+  board,
+  placeRef,
+  busy,
+  framed = true,
+  onClose,
+  onOp,
+  onStartMove,
+}: Props = $props()
 
 const GROUPS = [
   ["vil", "Vil"],
@@ -69,7 +79,10 @@ function pick(candidate: Candidate) {
 <section
   id="place-panel"
   aria-labelledby="place-heading"
-  class="flex min-h-0 flex-col gap-3 rounded-base border-2 border-secondary bg-panel p-4 shadow-shadow"
+  class={cn(
+    "flex min-h-0 flex-col gap-3",
+    framed && "rounded-base border-2 border-secondary bg-panel p-4 shadow-shadow",
+  )}
 >
   <div class="flex items-start justify-between gap-2">
     <div>
@@ -160,7 +173,7 @@ function pick(candidate: Candidate) {
                   type="button"
                   class={cn(
                     "focus-brutal flex min-h-11 w-full cursor-pointer flex-col rounded-base border border-border bg-card px-2 py-1.5 text-left hover:border-foreground/40 disabled:cursor-wait",
-                    key === "nei" && "opacity-75",
+                    key === "nei" && "border-dashed",
                   )}
                   disabled={busy}
                   onclick={() => pick(candidate)}

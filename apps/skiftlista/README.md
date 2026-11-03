@@ -2,7 +2,7 @@
 
 The page where bar leaders see wishes and place people on shifts, as a
 separate frontend for Kvarteret Personal. Svelte 5 with Vite (no SvelteKit),
-Tailwind 4 and the website's hs theme. This folder is a **prototype with
+Tailwind 4, the website's hs theme and Bits UI (MIT) for the sheet. This folder is a **prototype with
 invented data only**: it talks to no server; `src/core/fake.ts` plays
 Personal's part in memory and resets on reload.
 
@@ -66,7 +66,10 @@ locally and point `LD_LIBRARY_PATH` at them:
 - "Angre" or Ctrl+Z undoes up to 20 steps in the shown week. Escape steps back
   one level (move mode, place panel, selection, day).
 - "Publiser uka", then change something: the status says "Endret etter
-  publisering".
+  publisering". A banner under the title says when the week is not published
+  (or was changed after publishing) and goes away when it is published.
+- Make the window narrower than 80rem (1280 px at 100 percent zoom): a place
+  now opens in a sheet over the page instead of the side panel.
 
 ## Layout of the code
 
@@ -78,8 +81,17 @@ locally and point `LD_LIBRARY_PATH` at them:
   `PlacePanel`, `Chip`); `src/App.svelte` holds the state.
 - `src/lib/`: class recipes copied from `apps/web` (`button.ts`,
   `selection-control.ts`), `cn.ts`, and `SectionMark.svelte`.
+- `src/lib/sheet/`: the one shadcn-svelte part in use, a Sheet (bottom side
+  only) on Bits UI's Dialog, restyled with the hs tokens. Brought in by hand
+  instead of with the shadcn-svelte CLI, so only what is used is here. Bits UI
+  gives the focus trap, Escape and click-outside closing, and hides the page
+  behind from screen readers. `App.svelte` shows the place panel in it when
+  `window.matchMedia("(min-width: 80rem)")` is false, and beside the grid
+  otherwise (one `PlacePanel` instance either way).
 - `src/styles.css`: the website's hs tokens and paper background, copied from
   `apps/web/src/app/globals.css`, plus the answer colours and a darker red for
   filled red buttons (the website's own red fails contrast with white text).
 - `e2e/`: the Playwright tests. They use only roles, visible text and the
   `data-slot` attribute, so they do not depend on the framework.
+  `leader.spec.ts` runs in a laptop-sized window, `narrow.spec.ts` (the
+  sheet) in a 390 px wide one; `playwright.config.ts` has a project for each.

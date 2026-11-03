@@ -19,6 +19,16 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         viewport: { width: 1366, height: 860 },
       },
+      testIgnore: "narrow.spec.ts",
+    },
+    // Below 80rem the place panel opens in a sheet; these tests need a phone.
+    {
+      name: "phone",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+      },
+      testMatch: "narrow.spec.ts",
     },
   ],
   webServer: {
