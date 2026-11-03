@@ -26,6 +26,7 @@ import {
 } from "./core/types"
 import {
   type Confirmation,
+  changedBy,
   confirmationFor,
   type Filter,
   firstName,
@@ -579,6 +580,7 @@ function problemTitle(refs: PlaceRef[]): string {
                   : "Uka er endret etter publisering."}
               </strong>
               {UNPUBLISHED_HELP[board.status]}
+              {changedBy(board.last_changed)}
             </section>
           {/if}
 

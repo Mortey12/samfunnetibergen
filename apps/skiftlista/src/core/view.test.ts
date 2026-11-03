@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { buildBoard, createStore, FIRST_WEEK, minutesBetween } from "./fake"
 import {
   addableKinds,
+  changedBy,
   filterPeople,
   fold,
   hoursText,
@@ -106,5 +107,17 @@ describe("what plus offers", () => {
       suggestion: null,
     })
     expect(addableKinds(board)).toEqual(["kokk"])
+  })
+})
+
+describe("who changed the week", () => {
+  it("says who and when, in Oslo time", () => {
+    expect(
+      changedBy({ by: "Stjerne Leder", at: "2026-11-03T13:05:00+00:00" }),
+    ).toMatch(/^Sist endret av Stjerne Leder, kl\. 14[:.]05\.$/)
+  })
+
+  it("says nothing when nobody changed it", () => {
+    expect(changedBy(null)).toBe("")
   })
 })

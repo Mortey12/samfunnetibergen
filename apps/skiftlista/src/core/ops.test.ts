@@ -237,5 +237,9 @@ describe("fake server refusals", () => {
       person.volunteer_id,
     )
     expect(changed.board.status).toBe("changed_after_publish")
+    expect(changed.board.last_changed?.by).toBe("Dev Admin")
+    const again = await api.setStatus(changed.board, "published")
+    expect(again.board.status).toBe("published")
+    expect(again.board.last_changed).toBeNull()
   })
 })

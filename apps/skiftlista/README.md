@@ -94,7 +94,8 @@ locally and point `LD_LIBRARY_PATH` at them:
 - "Angre" or Ctrl+Z undoes up to 20 steps in the shown week. Escape steps back
   one level (move mode, place panel, selection, day).
 - "Publiser uka", then change something: the status says "Endret etter
-  publisering". A banner under the title says when the week is not published
+  publisering" and the box under the title says who changed it and when
+  (Personal keeps it in two columns on the week's status row). A banner under the title says when the week is not published
   (or was changed after publishing) and goes away when it is published.
 - Under a shift's places, the line "Skjenker: 2" has a "−" and a "+": one more
   place, or one empty place less (Kokk instead of Skjenker in the kitchen).

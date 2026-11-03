@@ -63,6 +63,17 @@ export const STATUS_TEXT: Record<WeekStatus, string> = {
   changed_after_publish: "Endret etter publisering",
 }
 
+/** "Sist endret av Kari, kl. 14:05." from the server's last_changed, in Oslo time. */
+export function changedBy(changed: { by: string; at: string } | null): string {
+  if (!changed) return ""
+  const time = new Date(changed.at).toLocaleTimeString("nb-NO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Oslo",
+  })
+  return `Sist endret av ${changed.by}, kl. ${time}.`
+}
+
 export function firstName(name: string): string {
   return name.split(" ")[0]
 }

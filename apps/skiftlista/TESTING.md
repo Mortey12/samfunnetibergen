@@ -335,6 +335,7 @@ Do this:
 You should see:
 
 - The label changes to "Endret etter publisering" (yellow).
+- The dashed box under the title says "Uka er endret etter publisering." and ends with "Sist endret av Dev Admin, kl. HH:MM." (the time is the minute you made the change).
 
 - [ ] It matched
 
@@ -918,6 +919,35 @@ You should see:
 
 - [ ] It matched
 
+### 8.8 Changed after publishing, and who did it
+
+Do this first (once): the database needs the new columns. Read `kvarteret-personal/migrations/versions/20261103_1200_week_changed_after_publish.py` (two nullable columns, nothing else), then in an Ubuntu window type each line on its own:
+
+    cd ~/kvarteret/kvarteret-personal
+
+    uv run alembic upgrade head
+
+You should see: a line "Running upgrade 20261101_1200 -> 20261103_1200". (Without this step the real board does not load.)
+
+Use the bar Stjerne, week 47: `http://localhost:3190/?api=http&bar=7&uke=2026-11-16`. Write down the status shown at the top (probably "Utkast: ikke synlig i appen").
+
+Do this:
+
+1. Click "Publiser uka". Nothing yellow yet.
+2. Place a person on an empty place (select a name, click "Sett inn ...").
+3. Reload the page (F5).
+4. Click "Publiser uka" again.
+5. Put the week back the way it was: if it was a draft, click "Lag utkast" (the button that reopens the week). Ctrl+Z the placement first if you placed someone and want it gone.
+
+You should see:
+
+- Step 2: the label says "Endret etter publisering" (yellow) and the box under the title ends with "Sist endret av Dev Admin, kl. HH:MM."
+- Step 3: the same after the reload, because it is saved in Personal.
+- Step 4: the yellow label and the box are gone; the label says "Publisert".
+- Volunteers are not affected: the week is still "published" for them the whole time.
+
+- [ ] It matched
+
 ## Part 6: Tell us what you found
 
 For each problem, write down four things:
@@ -938,7 +968,7 @@ Things that are not finished yet, so you do not need to report them:
 - Nothing is saved. Reloading the page (F5) starts over.
 - The button "Lag forslag for uka" is grey on purpose, and its hover text says "Kommer senere". Suggestions come later.
 - The text about "Vis andre" in the box on the right is a placeholder for something that comes later.
-- Not built yet on real data: "Lag forslag for uka", a yellow "Endret etter publisering" label (Personal does not have that state).
+- Not built yet on real data: "Lag forslag for uka".
 - On a phone, the box "Folk denne uka" is shown below the grid. A special phone layout for the whole page comes later (only the place sheet, test 4.4, is done).
 
 ## For developers (optional): the automatic checks
@@ -959,7 +989,7 @@ Run the small tests:
 
     npm run test:skiftlista
 
-You should see: It says Tests 42 passed (42).
+You should see: It says Tests 44 passed (44).
 
 Go to the app folder:
 

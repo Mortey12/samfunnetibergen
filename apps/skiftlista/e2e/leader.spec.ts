@@ -370,6 +370,9 @@ test("an unpublished week says so, and the banner follows the status", async ({
   await places(page).filter({ hasText: "Sett inn Emil" }).first().click()
   await expect(banner).toContainText("Uka er endret etter publisering.")
   await expect(banner).toContainText("Trykk «Publiser uka» igjen")
+  await expect(banner).toContainText(
+    /Sist endret av Dev Admin, kl\. \d\d[:.]\d\d\./,
+  )
 
   await page.getByRole("button", { name: "Publiser uka" }).click()
   await expect(banner).toBeHidden()

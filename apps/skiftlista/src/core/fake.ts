@@ -179,6 +179,7 @@ interface Store {
   answers: Map<string, Answer>
   status: Map<string, WeekStatus>
   version: Map<string, number>
+  changed: Map<string, { by: string; at: string }>
   nextId: number
 }
 
@@ -206,6 +207,7 @@ export function createStore(): Store {
     answers: new Map(),
     status: new Map(),
     version: new Map(),
+    changed: new Map(),
     nextId: 1000,
   }
   let personId = 100
@@ -582,7 +584,7 @@ export function buildBoard(
         status: statusFor(store, barId, start),
       }
     }),
-    last_changed: null,
+    last_changed: store.changed.get(weekKey(barId, weekStart)) ?? null,
   }
 }
 
@@ -625,8 +627,10 @@ function requireFresh(store: Store, board: WeekBoard) {
 function touch(store: Store, board: WeekBoard) {
   const key = weekKey(board.bar.id, board.week_start)
   store.version.set(key, (store.version.get(key) ?? 0) + 1)
-  if (store.status.get(key) === "published")
+  if (store.status.get(key) === "published") {
     store.status.set(key, "changed_after_publish")
+    store.changed.set(key, { by: "Dev Admin", at: new Date().toISOString() })
+  }
 }
 
 function checkFit(
@@ -855,6 +859,7 @@ export function createFakeApi(
       await wait()
       requireFresh(store, board)
       store.status.set(weekKey(board.bar.id, board.week_start), status)
+      store.changed.delete(weekKey(board.bar.id, board.week_start))
       const key = weekKey(board.bar.id, board.week_start)
       store.version.set(key, (store.version.get(key) ?? 0) + 1)
       return result(
