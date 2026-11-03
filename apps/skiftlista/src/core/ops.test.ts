@@ -9,7 +9,7 @@ import {
   type UndoEntry,
 } from "./ops"
 import type { WeekBoard } from "./types"
-import { isOpen } from "./view"
+import { confirmationFor, isOpen } from "./view"
 
 const STJERNE = 11
 
@@ -109,16 +109,64 @@ describe("undo", () => {
 })
 
 describe("fake server refusals", () => {
-  it("refuses a non-skiftleder on a skiftleder place", async () => {
+  it("asks for a confirmation before a non-skiftleder takes a skiftleder place", async () => {
     const { api, board } = await setup()
     const slPlace = board.shifts
       .flatMap(shift => shift.places)
       .find(place => place.kind === "skiftleder" && !place.assignment)
-    const notSl = board.people.find(person => !person.is_skiftleder)
+    const notSl = board.people.find(
+      person =>
+        !person.is_skiftleder &&
+        board.fit[person.volunteer_id]?.[slPlace?.slot_id ?? 0]?.ok,
+    )
     if (!slPlace || !notSl) throw new Error("setup")
+    const fit = board.fit[notSl.volunteer_id][slPlace.slot_id]
+    expect(fit.ok && fit.needs_confirmation).toBe(true)
+    expect(fit.ok && fit.warnings[0]).toEqual({
+      text: "bare godkjente skiftledere",
+      level: "red",
+    })
+    // Without the leader's confirmation the server says no ...
     await expect(
       api.place(board, slPlace.slot_id, notSl.volunteer_id),
-    ).rejects.toThrow("bare godkjente skiftledere")
+    ).rejects.toThrow("mangler godkjenning")
+    // ... with it, the person is placed.
+    const result = await api.place(
+      board,
+      slPlace.slot_id,
+      notSl.volunteer_id,
+      true,
+    )
+    expect(result.message).toContain("er satt opp som skiftleder")
+  })
+
+  it("confirmationFor asks only for place, replace and move of an unqualified person", async () => {
+    const { board } = await setup()
+    const slPlace = board.shifts
+      .flatMap(shift => shift.places)
+      .find(place => place.kind === "skiftleder" && !place.assignment)
+    const notSl = board.people.find(
+      person =>
+        !person.is_skiftleder &&
+        board.fit[person.volunteer_id]?.[slPlace?.slot_id ?? 0]?.ok,
+    )
+    const sl = board.people.find(person => person.is_skiftleder)
+    if (!slPlace || !notSl || !sl) throw new Error("setup")
+    const op = {
+      type: "place",
+      slotId: slPlace.slot_id,
+      volunteerId: notSl.volunteer_id,
+    } as const
+    expect(confirmationFor(board, op)?.person.volunteer_id).toBe(
+      notSl.volunteer_id,
+    )
+    expect(confirmationFor(board, { ...op, confirmed: true })).toBeNull()
+    expect(
+      confirmationFor(board, { ...op, volunteerId: sl.volunteer_id }),
+    ).toBeNull()
+    expect(
+      confirmationFor(board, { type: "status", status: "published" }),
+    ).toBeNull()
   })
 
   it("refuses a write on a stale copy of the week", async () => {

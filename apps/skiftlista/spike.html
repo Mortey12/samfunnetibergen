@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="nb">
+  <head>
+    <meta charset="utf-8" />
+    <title>Spike: Personal login</title>
+  </head>
+  <body style="font-family: sans-serif; padding: 2rem">
+    <!-- SPIKE (throwaway). Not part of the app or its build. -->
+    <h1>Spike: er du logget inn i Personal?</h1>
+    <p id="out" role="status">Spør Personal ...</p>
+    <script type="module">
+      const out = document.getElementById("out")
+      // Our own spike endpoint exists only on a local Personal. A hosted demo
+      // has the older /api/v1/me/statistikk-tilgang, which also gives name and role.
+      async function ask(path) {
+        return fetch(`/personal${path}`, { credentials: "same-origin" })
+      }
+      try {
+        let response = await ask("/api/v1/leader/shifts/me")
+        let endpoint = "leader/shifts/me"
+        if (response.status === 404) {
+          response = await ask("/api/v1/me/statistikk-tilgang")
+          endpoint = "me/statistikk-tilgang"
+        }
+        if (response.status === 401 || response.status === 403) {
+          out.textContent = `Ikke logget inn (${response.status}). Logg inn i Personal først.`
+        } else if (!response.ok) {
+          out.textContent = `Feil fra Personal: ${response.status}`
+        } else {
+          const me = await response.json()
+          const bars = me.bars ?? me.groups
+          out.textContent = `Hei ${me.name} (${me.role})!${
+            bars ? ` Barer/grupper: ${bars.map(bar => bar.name).join(", ") || "ingen"}.` : ""
+          } (svar fra ${endpoint})`
+        }
+      } catch (error) {
+        out.textContent = `Fikk ikke kontakt med Personal: ${error}`
+      }
+    </script>
+  </body>
+</html>

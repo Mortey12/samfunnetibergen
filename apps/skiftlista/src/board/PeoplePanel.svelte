@@ -9,6 +9,7 @@ import {
   FILTERS,
   type Filter,
   filterPeople,
+  hoursText,
 } from "../core/view"
 import { buttonVariants } from "../lib/button"
 import { cn } from "../lib/cn"
@@ -47,7 +48,9 @@ function meta(person: Person): string {
   } else if (person.answer_status === "ikke_svart") {
     parts.push("ikke svart")
   }
-  parts.push(`${person.week_shifts} uka · ${person.month_shifts} mnd`)
+  parts.push(
+    `${person.week_shifts} uka · ${person.month_shifts} mnd${person.week_minutes ? ` · ${hoursText(person.week_minutes)}` : ""}`,
+  )
   if (person.max_shifts !== null) parts.push(`maks ${person.max_shifts}`)
   parts.push(...person.tags)
   if (person.max_shifts !== null && person.week_shifts > person.max_shifts)

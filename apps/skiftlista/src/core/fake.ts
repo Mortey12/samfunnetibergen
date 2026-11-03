@@ -411,9 +411,12 @@ function fitFor(
     )
   )
     return { ok: false, reason: "allerede på dette skiftet" }
-  if (place.kind === "skiftleder" && !person.is_skiftleder)
-    return { ok: false, reason: "bare godkjente skiftledere" }
   const warnings: Note[] = []
+  // Like Personal: a missing approval is not a refusal. The leader may place
+  // the person after confirming a big red warning.
+  const lacksApproval = place.kind === "skiftleder" && !person.is_skiftleder
+  if (lacksApproval)
+    warnings.push({ text: "bare godkjente skiftledere", level: "red" })
   if (
     store.answers.get(answerKey(shift.shift_id, person.volunteer_id)) === "nei"
   )
@@ -426,7 +429,19 @@ function fitFor(
       text: `skift nummer ${total + 1} denne uka`,
       level: "yellow",
     })
-  return { ok: true, warnings }
+  return lacksApproval
+    ? { ok: true, warnings, needs_confirmation: true }
+    : { ok: true, warnings }
+}
+
+/** "22:00" to "02:00" is 4 hours: a shift past midnight ends the next day. */
+export function minutesBetween(start: string, end: string): number {
+  const minutes = (time: string) => {
+    const [hours, rest] = time.split(":").map(Number)
+    return hours * 60 + rest
+  }
+  const diff = minutes(end) - minutes(start)
+  return diff > 0 ? diff : diff + 24 * 60
 }
 
 function statusFor(store: Store, barId: number, weekStart: string): WeekStatus {
@@ -485,6 +500,7 @@ export function buildBoard(
       starts_at: `${shift.day}T${shift.time[0]}`,
       ends_at: `${shift.day}T${shift.time[1]}`,
       time_label: `${shift.time[0]}–${shift.time[1]}`,
+      duration_minutes: minutesBetween(shift.time[0], shift.time[1]),
       closed: false,
       places,
       answers,
@@ -507,6 +523,18 @@ export function buildBoard(
       is_skiftleder: person.is_skiftleder,
       week_shifts: weekCount(counts, person.volunteer_id),
       month_shifts: monthShifts(person.volunteer_id),
+      week_minutes: shifts
+        .filter(shift =>
+          shift.places.some(
+            place =>
+              place.assignment?.volunteer_id === person.volunteer_id &&
+              !place.assignment.cannot_attend,
+          ),
+        )
+        .reduce(
+          (sum, shift) => sum + minutesBetween(shift.time[0], shift.time[1]),
+          0,
+        ),
       answer_status: status,
       busy_days: [...busy].sort(),
       note: person.volunteer_id % 7 === 0 ? "Eksamen torsdag" : null,
@@ -607,6 +635,7 @@ function checkFit(
   place: StoredPlace,
   who: StoredPerson,
   ignore?: number,
+  confirmed = false,
 ) {
   const counts = dayCounts(store, mondayOf(shift.day))
   if (ignore !== undefined) {
@@ -619,6 +648,10 @@ function checkFit(
   place.assignment = saved
   if (!fit.ok)
     throw new RefusedError(`Ikke lagret: ${who.name}, ${fit.reason}.`)
+  if (fit.needs_confirmation && !confirmed)
+    throw new RefusedError(
+      `Ikke lagret: ${who.name} mangler godkjenning for plassen og må bekreftes.`,
+    )
   return fit.warnings
 }
 
@@ -660,14 +693,14 @@ export function createFakeApi(
       await wait()
       return buildBoard(store, groupId, weekStart)
     },
-    async place(board, slotId, volunteerId) {
+    async place(board, slotId, volunteerId, confirmed) {
       await wait()
       requireFresh(store, board)
       const { shift, place } = findPlace(store, slotId)
       if (place.assignment && !place.assignment.cannot_attend)
         throw new RefusedError("Ikke lagret: plassen ble tatt i mellomtiden.")
       const who = person(store, volunteerId)
-      const warnings = checkFit(store, shift, place, who)
+      const warnings = checkFit(store, shift, place, who, undefined, confirmed)
       place.assignment = newAssignment(store, volunteerId)
       touch(store, board)
       return result(
@@ -676,7 +709,7 @@ export function createFakeApi(
         warnings,
       )
     },
-    async replace(board, assignmentId, volunteerId) {
+    async replace(board, assignmentId, volunteerId, confirmed) {
       await wait()
       requireFresh(store, board)
       const { shift, place, assignment } = findAssignment(store, assignmentId)
@@ -688,6 +721,7 @@ export function createFakeApi(
         place,
         who,
         assignment.volunteer_id,
+        confirmed,
       )
       place.assignment = newAssignment(store, volunteerId)
       touch(store, board)
@@ -697,7 +731,7 @@ export function createFakeApi(
         warnings,
       )
     },
-    async move(board, assignmentId, toSlotId) {
+    async move(board, assignmentId, toSlotId, confirmed) {
       await wait()
       requireFresh(store, board)
       const from = findAssignment(store, assignmentId)
@@ -708,7 +742,14 @@ export function createFakeApi(
       const saved = from.place.assignment
       from.place.assignment = null
       try {
-        const warnings = checkFit(store, to.shift, to.place, who)
+        const warnings = checkFit(
+          store,
+          to.shift,
+          to.place,
+          who,
+          undefined,
+          confirmed,
+        )
         to.place.assignment = {
           ...newAssignment(store, who.volunteer_id),
           assignment_id: assignmentId,

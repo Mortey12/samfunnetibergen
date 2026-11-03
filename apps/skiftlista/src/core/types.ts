@@ -62,6 +62,13 @@ export interface Place {
   assignment: Assignment | null
   /** L3: a pending suggestion, never visible in the volunteer app. */
   suggestion: { volunteer_id: number; why: string } | null
+  /**
+   * The place still has to be filled for the shift to be staffed: empty (or
+   * "kan ikke i dag"), shift open, and not an Opplæring place (a trainee is
+   * an extra). The "ledige" count is the number of these. Missing means
+   * "same as empty" (the prototype's fake data).
+   */
+  needed?: boolean
 }
 
 export interface Shift {
@@ -71,8 +78,11 @@ export interface Shift {
   /** 1-based position in the bar's day (1. skift, 2. skift ...). */
   position: number
   title: string
-  starts_at: string
-  ends_at: string
+  /** Real times with offset, e.g. "2026-12-01T16:30:00+01:00". */
+  starts_at?: string | null
+  ends_at?: string | null
+  /** Planned length in minutes; counts a shift past midnight correctly. */
+  duration_minutes?: number | null
   /** "16:30–22:00", already formatted by the server. */
   time_label: string
   closed: boolean
@@ -87,6 +97,8 @@ export interface Person {
   is_skiftleder: boolean
   week_shifts: number
   month_shifts: number
+  /** Planned minutes this week on shifts the person is coming to. */
+  week_minutes: number
   answer_status: AnswerStatus
   /** ISO days this week with a shift in any group. */
   busy_days: string[]
@@ -98,7 +110,18 @@ export interface Person {
 }
 
 /** Whether a person fits an open place, and what to warn about. */
-export type Fit = { ok: true; warnings: Note[] } | { ok: false; reason: string }
+export type Fit =
+  | {
+      ok: true
+      warnings: Note[]
+      /**
+       * The person lacks what the place needs (for example the skiftleder
+       * approval). The leader may still place them, but only after a popup
+       * with the red warning is confirmed.
+       */
+      needs_confirmation?: boolean
+    }
+  | { ok: false; reason: string }
 
 export interface WeekStripItem {
   week_start: string
@@ -144,23 +167,30 @@ export class RefusedError extends Error {}
 export interface LeaderApi {
   me(): Promise<LeaderMe>
   week(groupId: number, weekStart: string): Promise<WeekBoard>
-  /** POST /placements */
+  /**
+   * POST /placements. `confirmed` says the leader accepted the big warning
+   * for a person who lacks the qualification; without it the server refuses
+   * such a placement.
+   */
   place(
     board: WeekBoard,
     slotId: number,
     volunteerId: number,
+    confirmed?: boolean,
   ): Promise<WriteResult>
   /** PUT /placements/{assignment_id}: another person in the same place. */
   replace(
     board: WeekBoard,
     assignmentId: number,
     volunteerId: number,
+    confirmed?: boolean,
   ): Promise<WriteResult>
   /** POST /placements/{assignment_id}/move: to an empty place. */
   move(
     board: WeekBoard,
     assignmentId: number,
     toSlotId: number,
+    confirmed?: boolean,
   ): Promise<WriteResult>
   /** POST /placements/swap: two placed people change places, atomically. */
   swap(board: WeekBoard, a: number, b: number): Promise<WriteResult>

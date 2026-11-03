@@ -8,11 +8,21 @@
 
 import type { LeaderApi, Place, WeekBoard, WriteResult } from "./types"
 
+/**
+ * `confirmed` is set once the leader accepted the big warning for a person
+ * who lacks the qualification (the popup in App.svelte), and on undo
+ * actions, which only put back what the leader already confirmed.
+ */
 export type Op =
-  | { type: "place"; slotId: number; volunteerId: number }
+  | { type: "place"; slotId: number; volunteerId: number; confirmed?: boolean }
   | { type: "remove"; slotId: number }
-  | { type: "replace"; slotId: number; volunteerId: number }
-  | { type: "move"; fromSlotId: number; toSlotId: number }
+  | {
+      type: "replace"
+      slotId: number
+      volunteerId: number
+      confirmed?: boolean
+    }
+  | { type: "move"; fromSlotId: number; toSlotId: number; confirmed?: boolean }
   | { type: "swap"; slotA: number; slotB: number }
   | { type: "status"; status: "open" | "published" }
 
@@ -49,16 +59,21 @@ export function inverseOf(op: Op, before: WeekBoard): Op | null {
       const volunteerId = occupant(before, op.slotId)
       return volunteerId === null
         ? null
-        : { type: "place", slotId: op.slotId, volunteerId }
+        : { type: "place", slotId: op.slotId, volunteerId, confirmed: true }
     }
     case "replace": {
       const volunteerId = occupant(before, op.slotId)
       return volunteerId === null
         ? null
-        : { type: "replace", slotId: op.slotId, volunteerId }
+        : { type: "replace", slotId: op.slotId, volunteerId, confirmed: true }
     }
     case "move":
-      return { type: "move", fromSlotId: op.toSlotId, toSlotId: op.fromSlotId }
+      return {
+        type: "move",
+        fromSlotId: op.toSlotId,
+        toSlotId: op.fromSlotId,
+        confirmed: true,
+      }
     case "swap":
       return op
     case "status":
@@ -77,13 +92,23 @@ export function run(
 ): Promise<WriteResult> {
   switch (op.type) {
     case "place":
-      return api.place(board, op.slotId, op.volunteerId)
+      return api.place(board, op.slotId, op.volunteerId, op.confirmed)
     case "remove":
       return api.remove(board, assignmentAt(board, op.slotId))
     case "replace":
-      return api.replace(board, assignmentAt(board, op.slotId), op.volunteerId)
+      return api.replace(
+        board,
+        assignmentAt(board, op.slotId),
+        op.volunteerId,
+        op.confirmed,
+      )
     case "move":
-      return api.move(board, assignmentAt(board, op.fromSlotId), op.toSlotId)
+      return api.move(
+        board,
+        assignmentAt(board, op.fromSlotId),
+        op.toSlotId,
+        op.confirmed,
+      )
     case "swap":
       return api.swap(
         board,

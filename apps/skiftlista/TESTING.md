@@ -118,7 +118,7 @@ You should see:
 
 - The big title says "Uke 49", with a yellow label "Utkast: ikke synlig i appen" next to it.
 - Below it are four round buttons: "! 1 problem" (red), "7 advarsler", "12 ledige" and "4 uten skift".
-- On the right is a box called "Folk denne uka" with a list of names.
+- On the right is a box called "Folk denne uka" with a list of names. Under each name is a short line, for example "1 uka · 2 mnd · 6 t": shifts this week, shifts this month, and planned hours this week (people with no shift this week show no hours).
 - The colours and letters look like the samfunnetibergen.no website.
 
 - [ ] It matched
@@ -136,7 +136,7 @@ You should see:
 
 - Emil's row turns orange.
 - Several free places in the grid now say "Sett inn Emil" with an orange dashed border.
-- The free Skiftleder places say "bare godkjente skiftledere" instead, because Emil is not a shift leader.
+- The free Skiftleder places also say "Sett inn Emil", but with a red line "bare godkjente skiftledere" and "Krever bekreftelse", because Emil is not an approved shift leader. A leader may still place him, after confirming (test 2.20).
 
 - [ ] It matched
 
@@ -179,7 +179,8 @@ You should see:
 
 - The box on the right changes. Its title is "Skiftleder, torsdag 3. desember".
 - It lists people under the headings Vil, Kan, Ikke svart and Kan ikke.
-- Every name in the list ends with "· SL" (only shift leaders can take this place).
+- The names under Vil, Kan, Ikke svart and Kan ikke all end with "· SL" (approved shift leaders).
+- Last in the box is a heading "Uten godkjenning, krever bekreftelse" with the other people. They can be chosen too, but only after a popup (test 2.20).
 
 - [ ] It matched
 
@@ -410,6 +411,32 @@ You should see:
 
 - [ ] It matched
 
+### 2.20 Place someone who is not approved (the popup)
+
+A leader may place anyone, also a person who does not have the approval the place needs. The page then asks first, with a big warning.
+
+Press F5 first, to start from the beginning.
+
+Do this:
+
+1. Click "Uten skift" in the box on the right, and click "Emil T.".
+2. In the grid, find the column Torsdag, row Dagskift, and click the top place (Skiftleder). It says "Sett inn Emil", a red line "bare godkjente skiftledere", and "Krever bekreftelse".
+3. Look at the popup. Then click "Avbryt".
+4. Click the same place again. This time click "Sett inn likevel".
+5. Press Ctrl and Z at the same time.
+6. Select Emil again, click the same place, and when the popup appears press Esc.
+
+You should see:
+
+- Step 3: a popup in the middle of the page with a red border and the title "Sette inn Emil likevel?". It says Emil does not have what is needed for this place, with the red line "bare godkjente skiftledere". The grey page behind cannot be clicked. The thick coloured frame is on the button "Avbryt" (so pressing Enter by mistake does not confirm).
+- After "Avbryt": the popup goes away, nothing is placed, and the frame is back on the place.
+- Step 4: the popup goes away, a green message says "Emil T. er satt opp som skiftleder ...", and the place shows "Emil T.".
+- Step 5: Emil is taken off again ("Emil T. er tatt av ...").
+- Step 6: Esc closes the popup like "Avbryt".
+- Also try: click the Skiftleder place with nobody selected, scroll the box on the right, and click a name under "Uten godkjenning, krever bekreftelse". The same popup appears.
+
+- [ ] It matched
+
 ## Part 3: Try it without a mouse
 
 Some leaders use only the keyboard. Put the mouse aside for these tests.
@@ -619,6 +646,120 @@ You should see:
 
 - [ ] It matched
 
+## Part 7 (optional): See real demo data from Personal
+
+Until now the page used invented people that live only in the browser. Here the page reads the week from Personal (a separate system), through the same login Personal already has. The people and shifts are Personal's demo data, not real people. You can only look: changing the week is not built yet.
+
+You need three Ubuntu windows. If you started the page in 1.3, stop it first (Ctrl and C in that window).
+
+### 7.1 Start Personal and the page
+
+Do this:
+
+1. In the first Ubuntu window, type and press Enter:
+
+       cd ~/kvarteret && ./start-personal.sh
+
+   Wait until you see "Application startup complete". Leave the window open.
+
+2. Open a second Ubuntu window (press the Windows key, type Ubuntu, Enter). Type and press Enter:
+
+       cd ~/kvarteret/kvarteret-personal && uv run uvicorn app.main:create_app --factory --port 8002
+
+   Wait for "Application startup complete". Leave it open.
+
+3. Open a third Ubuntu window. Type and press Enter:
+
+       cd ~/kvarteret/samfunnetibergen && npm run dev:skiftlista
+
+   Wait for "Local: http://localhost:3190/".
+
+You should see:
+
+- Three windows, each ending its text with a "started" or "Local:" message.
+- If a window says "address already in use", that program is already running (Claude Code may have started it). That is fine: leave it and go on to 7.2. Press Ctrl and C only in windows you started yourself.
+- Why two copies of Personal: Chrome on this computer cannot open port 8000, but the page itself can talk to it. So you log in on port 8002 and the page reads from port 8000. They share the same database and the same login.
+
+- [ ] It matched
+
+### 7.2 Log in to Personal
+
+Do this:
+
+1. In Chrome, open: http://localhost:8002/login
+2. In the first field type: dev@kvarteret.dev. In the second field type: dev-password. Click the login button.
+
+You should see:
+
+- Personal's front page, logged in as Dev Admin.
+
+- [ ] It matched
+
+### 7.3 Open the page on real data
+
+Do this:
+
+1. In Chrome, open: http://localhost:3190/?api=http
+
+You should see:
+
+- The page with four bars at the top: Grøndahls, Halvtimen, Kjøkken and Stjerne. "Dev Admin" at the top right.
+- At the bottom, the small text says "Leser fra Personal. Å endre uka er ikke bygd ennå."
+- The address in Chrome now ends with something like ?api=http&bar=9&uke=2026-11-02: the bar and week are in the address.
+- A grid with names that are not the invented ones from before. (On the bar Stjerne, for example, William Lie and Live Moen.)
+- On Stjerne week 45 (uke=2026-11-02), the round button says "5 ledige". The grid shows 7 empty boxes: the two empty "Opplæring" boxes are not counted, because a trainee is an extra and not something the shift needs. Click "5 ledige" and the box on the right opens one of the places that need someone.
+
+- [ ] It matched
+
+### 7.4 Bars, weeks and the address
+
+Do this:
+
+1. Click "Stjerne" at the top. Look at the address.
+2. Click the arrow > next to the week buttons. Look at the address.
+3. Press F5.
+
+You should see:
+
+- Step 1: the grid changes to Stjerne's shifts, and the address says bar=7.
+- Step 2: the title says the next week, and the address has a new date after uke=.
+- Step 3: after reloading you are on the same bar and the same week.
+
+- [ ] It matched
+
+### 7.5 What the page says about empty places and hours
+
+Do this:
+
+1. On the Stjerne week 45 (uke=2026-11-02), find the chips below the title. Click a person in "Folk denne uka" who has a shift (look for a line with "t" for hours, for example "1 uka · 1 mnd · 6 t").
+2. Click a place in the grid, then try the red button "Gjør til utkast" (or "Publiser uka").
+
+You should see:
+
+- Step 1: the number of hours is the planned length of the shifts the person is coming to.
+- Step 2: a message in red that says changing the week against Personal is not built yet. Nothing is changed.
+
+- [ ] It matched
+
+### 7.6 When you are not logged in
+
+Do this:
+
+1. In Chrome, open: http://localhost:8002/logout (confirm if it asks).
+2. Open http://localhost:3190/?api=http
+3. Click "Logg inn i Personal".
+
+You should see:
+
+- Step 2: a page that says "Fikk ikke hentet skiftlista" and "Du er ikke logget inn i Personal." with the buttons "Logg inn i Personal" and "Prøv igjen".
+- Step 3: Personal's login page. (Log in again as in 7.2 and click "Prøv igjen" on the page, and the week appears.)
+
+- [ ] It matched
+
+### 7.7 When you are finished
+
+Press Ctrl and C in each of the three Ubuntu windows.
+
 ## Part 6: Tell us what you found
 
 For each problem, write down four things:
@@ -639,6 +780,7 @@ Things that are not finished yet, so you do not need to report them:
 - Nothing is saved. Reloading the page (F5) starts over.
 - The button "Lag forslag for uka" is grey on purpose. Suggestions come later.
 - The text about "Vis andre" in the box on the right is a placeholder for something that comes later.
+- Real data (Part 7) can only be looked at. Placing, moving, removing and publishing against Personal are not built yet, so those buttons give a red message there. The popup in 2.20 and everything else in Parts 2 to 4 work on the invented data.
 - On a phone, the box "Folk denne uka" is shown below the grid. A special phone layout for the whole page comes later (only the place sheet, test 4.4, is done).
 
 ## For developers (optional): the automatic checks
@@ -659,7 +801,7 @@ Run the small tests:
 
     npm run test:skiftlista
 
-You should see: It says Tests 11 passed (11).
+You should see: It says Tests 26 passed (26).
 
 Go to the app folder:
 
@@ -673,4 +815,4 @@ Run the browser tests (they click through the page by themselves, about 15 secon
 
     npx playwright test
 
-You should see: It ends with 31 passed. (The first 22 run in a laptop-sized window and the last 9 in a phone-sized window; the computer switches the window size by itself.)
+You should see: It ends with 46 passed. (37 run in a laptop-sized window and 9 in a phone-sized window; the computer switches the window size by itself. Some of them pretend to be Personal, so they work without it.)

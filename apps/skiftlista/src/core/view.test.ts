@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { buildBoard, createStore, FIRST_WEEK } from "./fake"
-import { filterPeople, fold, matches, summarize } from "./view"
+import { buildBoard, createStore, FIRST_WEEK, minutesBetween } from "./fake"
+import { filterPeople, fold, hoursText, matches, summarize } from "./view"
 
 describe("search", () => {
   it("folds å but keeps æ and ø", () => {
@@ -32,5 +32,54 @@ describe("summary", () => {
     expect(list.every(person => person.is_skiftleder)).toBe(true)
     const counts = list.map(person => person.week_shifts)
     expect(counts).toEqual([...counts].sort((a, b) => a - b))
+  })
+})
+
+describe("hoursText", () => {
+  it("words planned minutes as hours", () => {
+    expect(hoursText(0)).toBe("0 min")
+    expect(hoursText(45)).toBe("45 min")
+    expect(hoursText(360)).toBe("6 t")
+    expect(hoursText(390)).toBe("6 t 30 min")
+  })
+})
+
+describe("shift length", () => {
+  it("counts a shift past midnight as the next day", () => {
+    expect(minutesBetween("11:00", "17:00")).toBe(360)
+    expect(minutesBetween("19:30", "01:30")).toBe(360)
+  })
+
+  it("adds up the hours a person is coming to", () => {
+    const board = buildBoard(createStore(), 11, FIRST_WEEK)
+    const worked = board.people.filter(person => person.week_shifts > 0)
+    expect(worked.length).toBeGreaterThan(0)
+    for (const person of worked)
+      expect(person.week_minutes).toBeGreaterThanOrEqual(0)
+    expect(board.shifts.every(shift => (shift.duration_minutes ?? 0) > 0)).toBe(
+      true,
+    )
+  })
+})
+
+describe("ledige", () => {
+  it("counts the places that must be filled, not every empty box", () => {
+    const board = buildBoard(createStore(), 11, FIRST_WEEK)
+    const place = board.shifts[0].places[0]
+    // An empty Opplæring place is an extra: it is open but not needed.
+    place.assignment = null
+    place.needed = false
+    const before = summarize(board).open.length
+    place.needed = true
+    expect(summarize(board).open.length).toBe(before + 1)
+  })
+
+  it("treats a place without the flag as needed when it is empty", () => {
+    const board = buildBoard(createStore(), 11, FIRST_WEEK)
+    const empty = board.shifts
+      .flatMap(shift => shift.places)
+      .filter(place => !place.assignment)
+    expect(empty.length).toBeGreaterThan(0)
+    expect(summarize(board).open.length).toBeGreaterThanOrEqual(empty.length)
   })
 })

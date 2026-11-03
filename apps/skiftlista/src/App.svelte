@@ -1,10 +1,12 @@
 <script lang="ts">
 import { ChevronLeft, ChevronRight, Printer, Undo2 } from "@lucide/svelte"
+import { untrack } from "svelte"
 import Chip from "./board/Chip.svelte"
 import PeoplePanel from "./board/PeoplePanel.svelte"
 import PlacePanel from "./board/PlacePanel.svelte"
 import WeekGrid from "./board/WeekGrid.svelte"
 import { addDays, FIRST_WEEK } from "./core/fake"
+import { NotSignedInError } from "./core/http"
 import {
   inverseOf,
   type Op,
@@ -23,6 +25,8 @@ import {
   type WeekBoard,
 } from "./core/types"
 import {
+  type Confirmation,
+  confirmationFor,
   type Filter,
   firstName,
   isOpen,
@@ -36,6 +40,7 @@ import {
   weekLabel,
 } from "./core/view"
 import { buttonVariants } from "./lib/button"
+import ConfirmDialog from "./lib/ConfirmDialog.svelte"
 import { cn } from "./lib/cn"
 import SectionMark from "./lib/SectionMark.svelte"
 import { selectionControlVariants } from "./lib/selection-control"
@@ -53,13 +58,41 @@ interface Message {
   error: boolean
 }
 
-let { api }: { api: LeaderApi } = $props()
+interface AppProps {
+  api: LeaderApi
+  /** The week to open when the address names none. */
+  initialWeek?: string
+  /** The prototype's fake data covers a few weeks; real data has no limit. */
+  limitWeeks?: boolean
+  /** True when the data comes from Personal (changes are not built yet). */
+  live?: boolean
+}
+
+let {
+  api,
+  initialWeek = FIRST_WEEK,
+  limitWeeks = true,
+  live = false,
+}: AppProps = $props()
+
+// The bar and the week live in the address (?bar=7&uke=2026-11-02), so a
+// reload or a shared link opens the same page.
+const params = new URLSearchParams(window.location.search)
+const urlBar = Number(params.get("bar")) || null
+const urlWeek = /^\d{4}-\d{2}-\d{2}$/.test(params.get("uke") ?? "")
+  ? (params.get("uke") as string)
+  : null
 
 let me = $state<LeaderMe | null>(null)
 let barId = $state<number | null>(null)
-let weekStart = $state(FIRST_WEEK)
+// Only the first value matters: after that the leader's clicks move the week.
+let weekStart = $state(untrack(() => urlWeek ?? initialWeek))
 let board = $state<WeekBoard | null>(null)
 let busy = $state(false)
+// Loading and errors while reading from the server.
+let weekLoading = $state(false)
+let loadError = $state<{ text: string; signIn: boolean } | null>(null)
+let loadTick = $state(0)
 let selectedId = $state<number | null>(null)
 let openSlot = $state<number | null>(null)
 let moveFrom = $state<number | null>(null)
@@ -69,6 +102,9 @@ let filter = $state<Filter>("alle")
 let message = $state<Message | null>(null)
 let undo = $state<UndoEntry[]>([])
 let showMissing = $state(false)
+// The big warning: set when the leader tries to place someone who lacks what
+// the place needs; the action runs only after the popup is confirmed.
+let pendingConfirm = $state<{ op: Op; confirmation: Confirmation } | null>(null)
 // After an action, focus goes to the changed place (as on Personal's week
 // page). It waits for the render that shows the new week.
 let pendingFocus = $state<number | null>(null)
@@ -91,6 +127,17 @@ const openRef = $derived<PlaceRef | null>(
   board && openSlot !== null ? placeRef(board, openSlot) : null,
 )
 const lastWeek = $derived(board?.strip.at(-1)?.week_start ?? weekStart)
+
+function describe(error: unknown): { text: string; signIn: boolean } {
+  if (error instanceof NotSignedInError)
+    return { text: "Du er ikke logget inn i Personal.", signIn: true }
+  if (error instanceof RefusedError)
+    return { text: error.message, signIn: false }
+  return {
+    text: "Fikk ikke kontakt med Personal. Sjekk nettet og prøv igjen.",
+    signIn: false,
+  }
+}
 const statusTone = $derived(
   board?.status === "published"
     ? "bg-answer-vil text-answer-vil-ink"
@@ -106,23 +153,58 @@ $effect(() => {
 })
 
 $effect(() => {
-  api.me().then(result => {
-    me = result
-    barId = result.bars[0]?.id ?? null
-  })
+  void loadTick
+  api
+    .me()
+    .then(result => {
+      me = result
+      loadError = null
+      barId =
+        result.bars.find(bar => bar.id === (barId ?? urlBar))?.id ??
+        result.bars[0]?.id ??
+        null
+    })
+    .catch(error => {
+      loadError = describe(error)
+    })
 })
 
 $effect(() => {
+  void loadTick
   const id = barId
   const start = weekStart
   if (id === null) return
-  let live = true
-  api.week(id, start).then(result => {
-    if (live) board = result
-  })
+  let current = true
+  weekLoading = true
+  api
+    .week(id, start)
+    .then(result => {
+      if (!current) return
+      board = result
+      loadError = null
+    })
+    .catch(error => {
+      if (!current) return
+      // With a week on screen the old one stays and the error is a message.
+      if (board)
+        message = { text: describe(error).text, warnings: [], error: true }
+      else loadError = describe(error)
+    })
+    .finally(() => {
+      if (current) weekLoading = false
+    })
   return () => {
-    live = false
+    current = false
   }
+})
+
+// Keep ?bar= and ?uke= in step with what is shown (other parameters stay).
+$effect(() => {
+  if (!board) return
+  const next = new URLSearchParams(window.location.search)
+  next.set("bar", String(board.bar.id))
+  next.set("uke", board.week_start)
+  window.history.replaceState(null, "", `?${next}`)
 })
 
 $effect(() => {
@@ -184,8 +266,45 @@ async function execute(op: Op, label: string, isUndo = false) {
   }
 }
 
+function targetSlot(op: Op): number | null {
+  switch (op.type) {
+    case "place":
+    case "remove":
+    case "replace":
+      return op.slotId
+    case "move":
+      return op.toSlotId
+    case "swap":
+      return op.slotB
+    case "status":
+      return null
+  }
+}
+
 function doOp(op: Op) {
-  if (board) execute(op, labelFor(op, board))
+  if (!board) return
+  const confirmation = confirmationFor(board, op)
+  if (confirmation) {
+    pendingConfirm = { op, confirmation }
+    return
+  }
+  execute(op, labelFor(op, board))
+}
+
+function confirmPending() {
+  const pending = pendingConfirm
+  pendingConfirm = null
+  if (!pending || !board) return
+  const op = { ...pending.op, confirmed: true } as Op
+  execute(op, labelFor(op, board))
+}
+
+function cancelPending() {
+  const pending = pendingConfirm
+  pendingConfirm = null
+  // Back to the place the leader was working on.
+  const slot = pending ? targetSlot(pending.op) : null
+  if (slot !== null) pendingFocus = slot
 }
 
 function undoLast() {
@@ -281,7 +400,27 @@ function problemTitle(refs: PlaceRef[]): string {
 
 <svelte:window onkeydown={onKeydown} />
 
-{#if !me || !board || !summary}
+{#if loadError}
+  <div class="mx-auto flex max-w-xl flex-col gap-4 p-8" role="alert">
+    <h1 class="text-3xl">Fikk ikke hentet skiftlista</h1>
+    <p>{loadError.text}</p>
+    <div class="flex flex-wrap gap-2">
+      {#if loadError.signIn}
+        <a class={buttonVariants()} href="/login">Logg inn i Personal</a>
+      {/if}
+      <button
+        type="button"
+        class={buttonVariants({ variant: "neutral" })}
+        onclick={() => {
+          loadError = null
+          loadTick += 1
+        }}
+      >
+        Prøv igjen
+      </button>
+    </div>
+  </div>
+{:else if !me || !board || !summary}
   <p class="p-8" role="status">Laster skiftplanen …</p>
 {:else}
   <div class="flex min-h-dvh flex-col">
@@ -377,7 +516,7 @@ function problemTitle(refs: PlaceRef[]): string {
                 type="button"
                 aria-label="Forrige uke"
                 class={selectionControlVariants({ size: "square" })}
-                disabled={board.week_start <= FIRST_WEEK}
+                disabled={limitWeeks && board.week_start <= FIRST_WEEK}
                 onclick={() => board && changeWeek(addDays(board.week_start, -7))}
               >
                 <ChevronLeft aria-hidden="true" class="size-4" />
@@ -401,7 +540,7 @@ function problemTitle(refs: PlaceRef[]): string {
                 type="button"
                 aria-label="Neste uke"
                 class={selectionControlVariants({ size: "square" })}
-                disabled={board.week_start >= lastWeek}
+                disabled={limitWeeks && board.week_start >= lastWeek}
                 onclick={() => board && changeWeek(addDays(board.week_start, 7))}
               >
                 <ChevronRight aria-hidden="true" class="size-4" />
@@ -524,6 +663,9 @@ function problemTitle(refs: PlaceRef[]): string {
             {/if}
           </div>
           <div aria-live="polite" class="noprint min-h-8 text-sm" role="status">
+            {#if weekLoading}
+              <p class="px-3 py-1.5 text-foreground-muted">Laster uka …</p>
+            {/if}
             {#if message}
               <p
                 class={cn(
@@ -631,8 +773,24 @@ function problemTitle(refs: PlaceRef[]): string {
             {/if}
           </Sheet>
         {/if}
+        <ConfirmDialog
+          open={pendingConfirm !== null}
+          title={pendingConfirm
+            ? `Sette inn ${firstName(pendingConfirm.confirmation.person.name)} likevel?`
+            : ""}
+          subject={pendingConfirm
+            ? `${pendingConfirm.confirmation.person.name} har ikke det som trengs for ${placeName(pendingConfirm.confirmation.place)}.`
+            : ""}
+          warnings={pendingConfirm?.confirmation.warnings ?? []}
+          confirmLabel="Sett inn likevel"
+          onConfirm={confirmPending}
+          onCancel={cancelPending}
+        />
         <footer class="noprint text-xs text-foreground-muted">
-          Prototype med oppdiktede data. Ingenting lagres. Tastatur: Tab mellom
+          {live
+            ? "Leser fra Personal. Å endre uka er ikke bygd ennå."
+            : "Prototype med oppdiktede data. Ingenting lagres."}
+          Tastatur: Tab mellom
           plasser, Enter velger, Escape går ett steg tilbake, Ctrl+Z angrer.
           {selected ? `Valgt: ${firstName(selected.name)}.` : ""}
         </footer>

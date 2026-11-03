@@ -2,9 +2,10 @@
 
 The page where bar leaders see wishes and place people on shifts, as a
 separate frontend for Kvarteret Personal. Svelte 5 with Vite (no SvelteKit),
-Tailwind 4, the website's hs theme and Bits UI (MIT) for the sheet. This folder is a **prototype with
-invented data only**: it talks to no server; `src/core/fake.ts` plays
-Personal's part in memory and resets on reload.
+Tailwind 4, the website's hs theme and Bits UI (MIT) for the sheet. By default it uses
+**invented data only**: `src/core/fake.ts` plays Personal's part in memory and
+resets on reload. With `?api=http` (development) or `VITE_LEADER_API=http`
+(build) it reads the week from Personal instead, see "Live data" below.
 
 ## Run it
 
@@ -14,6 +15,26 @@ From the repository root:
     npm run dev:skiftlista
 
 Open http://localhost:3190.
+
+## Live data (read only)
+
+`src/core/http.ts` is a `LeaderApi` that reads from Personal's leader API
+(`GET /api/v1/leader/shifts/me` and `/weeks/{week_start}?group_id=`) through the
+same-origin path `/personal/*`. In development Vite proxies `/personal/*`,
+`/login`, `/logout` and `/static/*` to a local Personal (`http://localhost:8000`,
+or `PERSONAL_URL`). Log in at Personal first, then open
+`http://localhost:3190/?api=http`. The bar and week live in the address
+(`?bar=7&uke=2026-11-02`). Writes are not built: placing, moving, removing and
+publishing answer "ikke bygd ennå". `TESTING.md` part 7 has the click-by-click
+steps.
+
+Personal gives a slot with room for several people ONE slot id, so `toBoard()`
+in `http.ts` gives every box its own app id `slot_id * 100 + seat` and copies a
+slot's fit to each open seat. Nothing else in the app knows about seats.
+
+A leader may place anyone: a person who lacks what the place needs is offered
+with a red warning and `needs_confirmation`, and `src/lib/ConfirmDialog.svelte`
+(Bits UI `AlertDialog`) asks before the action runs.
 
 ## Checks
 
@@ -77,6 +98,8 @@ locally and point `LD_LIBRARY_PATH` at them:
   from Personal), `fake.ts` (the in-memory stand-in), `ops.ts` (actions and
   their inverses for undo), `view.ts` (counting, sorting, wording), `drag.ts`
   (what a drop means), and their tests.
+- `src/core/http.ts`: the real client and the translation of Personal's JSON
+  (`toBoard`); `http.test.ts` tests it with a fake `fetch`.
 - `src/board/`: the Svelte components (`WeekGrid`, `PlaceBox`, `PeoplePanel`,
   `PlacePanel`, `Chip`); `src/App.svelte` holds the state.
 - `src/lib/`: class recipes copied from `apps/web` (`button.ts`,
@@ -93,5 +116,6 @@ locally and point `LD_LIBRARY_PATH` at them:
   filled red buttons (the website's own red fails contrast with white text).
 - `e2e/`: the Playwright tests. They use only roles, visible text and the
   `data-slot` attribute, so they do not depend on the framework.
-  `leader.spec.ts` runs in a laptop-sized window, `narrow.spec.ts` (the
-  sheet) in a 390 px wide one; `playwright.config.ts` has a project for each.
+  `leader.spec.ts` runs in a laptop-sized window, `live.spec.ts` replays
+  recorded Personal answers from `e2e/fixtures/` (demo data) so it needs no
+  Personal, `narrow.spec.ts` (the sheet) in a 390 px wide one; `playwright.config.ts` has a project for each.

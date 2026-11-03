@@ -5,6 +5,7 @@
  */
 
 import { addDays } from "./fake"
+import { type Op, occupant } from "./ops"
 import type {
   Answer,
   Fit,
@@ -108,6 +109,11 @@ export function isOpen(place: Place): boolean {
   return !place.assignment || place.assignment.cannot_attend
 }
 
+/** A place that must still be filled (see `Place.needed`). */
+export function isNeeded(place: Place): boolean {
+  return place.needed ?? isOpen(place)
+}
+
 export function levelOf(notes: Note[]): "red" | "yellow" | null {
   if (notes.some(note => note.level === "red")) return "red"
   return notes.length ? "yellow" : null
@@ -153,6 +159,7 @@ export interface Summary {
   problems: PlaceRef[]
   /** Places with only yellow warnings. */
   warnings: PlaceRef[]
+  /** Places that must still be filled: the "ledige" chip. */
   open: PlaceRef[]
   withoutShift: Person[]
   answered: number
@@ -172,7 +179,7 @@ export function summarize(board: WeekBoard): Summary {
         !isOpen(ref.place) &&
         levelOf(ref.place.assignment?.problems ?? []) === "yellow",
     ),
-    open: places.filter(ref => isOpen(ref.place)),
+    open: places.filter(ref => isNeeded(ref.place)),
     withoutShift: board.people.filter(
       person => person.answer_status !== "ikke_svart" && !person.week_shifts,
     ),
@@ -263,20 +270,57 @@ export interface Candidate {
   fit: Fit
 }
 
+/** "6 t" or "6 t 30 min": planned hours from minutes. */
+export function hoursText(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (!hours) return `${rest} min`
+  return rest ? `${hours} t ${rest} min` : `${hours} t`
+}
+
+/** What the leader must confirm before an action, or null if nothing. */
+export interface Confirmation {
+  person: Person
+  place: PlaceRef
+  warnings: Note[]
+}
+
+/**
+ * The popup case: placing a person the server marked `needs_confirmation`
+ * (and the leader has not confirmed yet). Swaps and undo actions never ask.
+ */
+export function confirmationFor(board: WeekBoard, op: Op): Confirmation | null {
+  if (op.type !== "place" && op.type !== "replace" && op.type !== "move")
+    return null
+  if (op.confirmed) return null
+  const slotId = op.type === "move" ? op.toSlotId : op.slotId
+  const volunteerId =
+    op.type === "move" ? occupant(board, op.fromSlotId) : op.volunteerId
+  if (volunteerId === null) return null
+  const fit = fitOf(board, volunteerId, slotId)
+  const person = personById(board, volunteerId)
+  const place = placeRef(board, slotId)
+  if (!fit?.ok || !fit.needs_confirmation || !person || !place) return null
+  return { person, place, warnings: fit.warnings }
+}
+
 /**
  * People for one place, grouped like the L2a picker: vil, kan, ikke svart,
  * kan ikke last; inside each group fewer shifts first. People the server says
- * do not fit are left out (the reason shows in the grid instead).
+ * do not fit at all are left out (the reason shows in the grid instead).
+ * People who may be placed only after a confirmation form their own last
+ * group, "unqualified".
  */
 export function candidates(
   board: WeekBoard,
   ref: PlaceRef,
-): Record<Answer | "none", Candidate[]> {
-  const groups: Record<Answer | "none", Candidate[]> = {
+): Record<Answer | "none" | "unqualified", Candidate[]> {
+  const groups: Record<Answer | "none" | "unqualified", Candidate[]> = {
     vil: [],
     kan: [],
     none: [],
     nei: [],
+    unqualified: [],
   }
   const slotId = ref.place.slot_id
   const current = ref.place.assignment?.cannot_attend
@@ -288,7 +332,12 @@ export function candidates(
       fitOf(board, person.volunteer_id, slotId) ?? replaceFit(ref, person)
     if (!fit?.ok) continue
     const answer = answerOf(ref.shift, person.volunteer_id) ?? "none"
-    groups[answer].push({ person, answer, fit })
+    // People who lack what the place needs come last, behind a popup.
+    groups[fit.needs_confirmation ? "unqualified" : answer].push({
+      person,
+      answer,
+      fit,
+    })
   }
   for (const list of Object.values(groups)) {
     list.sort(

@@ -7,6 +7,7 @@ import {
   type Candidate,
   candidates,
   dayLabel,
+  hoursText,
   KIND_LABEL,
   levelOf,
   type PlaceRef,
@@ -41,6 +42,7 @@ const GROUPS = [
   ["kan", "Kan"],
   ["none", "Ikke svart"],
   ["nei", "Kan ikke"],
+  ["unqualified", "Uten godkjenning, krever bekreftelse"],
 ] as const
 
 let heading = $state<HTMLHeadingElement | null>(null)
@@ -186,7 +188,9 @@ function pick(candidate: Candidate) {
                     </span>
                     <span class="text-xs text-foreground-muted">
                       {candidate.person.week_shifts} uka · {candidate.person
-                        .month_shifts} mnd
+                        .month_shifts} mnd{candidate.person.week_minutes
+                        ? ` · ${hoursText(candidate.person.week_minutes)}`
+                        : ""}
                     </span>
                   </span>
                   {#if warnings.length}

@@ -78,7 +78,9 @@ const label = $derived.by(() => {
 })
 const detail = $derived.by(() => {
   if (moving) return null
-  if (sick && offer) return `erstatter ${sick.name}`
+  if (sick && offer)
+    return `erstatter ${sick.name}${offer.needs_confirmation ? ", krever bekreftelse" : ""}`
+  if (offer?.needs_confirmation) return "Krever bekreftelse"
   if (sick) return "Kan ikke i dag, trenger erstatter"
   if (open && selected && fit && !fit.ok) return fit.reason
   return null

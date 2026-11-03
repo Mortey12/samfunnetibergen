@@ -57,14 +57,21 @@ test("person first: select, place, focus returns, Ctrl+Z undoes", async ({
   )
 })
 
-test("person first: a place that does not fit says why", async ({ page }) => {
+test("person first: a place the person lacks the approval for says so in red and asks to confirm", async ({
+  page,
+}) => {
   await person(page, "Emil T.").click()
-  await expect(
-    places(page).filter({ hasText: "bare godkjente skiftledere" }).first(),
-  ).toBeVisible()
+  const offer = places(page)
+    .filter({ hasText: "bare godkjente skiftledere" })
+    .first()
+  await expect(offer).toBeVisible()
+  await expect(offer).toContainText("Sett inn Emil")
+  await expect(offer).toContainText("Krever bekreftelse")
 })
 
-test("place first: the panel lists only people who fit", async ({ page }) => {
+test("place first: the panel lists qualified people first and the rest behind a confirmation", async ({
+  page,
+}) => {
   const slPlace = place(page, /^Skiftleder torsdag 3\. desember, Dagskift/)
   await slPlace.click()
   const heading = page.getByRole("heading", {
@@ -72,15 +79,93 @@ test("place first: the panel lists only people who fit", async ({ page }) => {
   })
   await expect(heading).toBeFocused()
   const panel = page.locator("#place-panel")
-  const candidates = panel.getByRole("listitem").getByRole("button")
-  const count = await candidates.count()
+  // Everyone in the answer groups (before "Uten godkjenning") is a skiftleder.
+  const qualified = panel.locator("div:has(> h3)").filter({
+    hasNot: page.getByRole("heading", { name: /^Uten godkjenning/ }),
+  })
+  const names = qualified.getByRole("listitem").getByRole("button")
+  const count = await names.count()
   expect(count).toBeGreaterThan(0)
   for (let index = 0; index < count; index++) {
-    await expect(candidates.nth(index)).toContainText("· SL")
+    await expect(names.nth(index)).toContainText("· SL")
   }
-  await candidates.first().click()
+  await expect(
+    panel.getByRole("heading", {
+      name: /^Uten godkjenning, krever bekreftelse/,
+    }),
+  ).toBeVisible()
+  await names.first().click()
   await expect(status(page)).toContainText("er satt opp som skiftleder")
   await expect(panel).toHaveCount(0)
+})
+
+test("placing someone without approval: a popup with the red warning, Avbryt does nothing", async ({
+  page,
+}) => {
+  const slPlace = place(page, /^Skiftleder torsdag 3\. desember, Dagskift/)
+  const slot = await slotOf(slPlace)
+  await person(page, "Emil T.").click()
+  await slPlace.click()
+  const dialog = page.getByRole("alertdialog", {
+    name: "Sette inn Emil likevel?",
+  })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText("bare godkjente skiftledere")
+  // Focus starts on the safe choice.
+  await expect(dialog.getByRole("button", { name: "Avbryt" })).toBeFocused()
+  await dialog.getByRole("button", { name: "Avbryt" }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.locator(`[data-slot="${slot}"]`)).toBeFocused()
+  // Nothing was placed: the place still offers Emil, it does not show him.
+  await expect(page.locator(`[data-slot="${slot}"]`)).toContainText(
+    "Sett inn Emil",
+  )
+  await expect(status(page)).toHaveCount(0)
+})
+
+test("placing someone without approval: Sett inn likevel places them, Ctrl+Z takes them off again", async ({
+  page,
+}) => {
+  const slPlace = place(page, /^Skiftleder torsdag 3\. desember, Dagskift/)
+  const slot = await slotOf(slPlace)
+  await person(page, "Emil T.").click()
+  await slPlace.click()
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Sett inn likevel" })
+    .click()
+  await expect(status(page)).toContainText("Emil T. er satt opp som skiftleder")
+  await expect(page.locator(`[data-slot="${slot}"]`)).toContainText("Emil T.")
+  await expect(page.locator(`[data-slot="${slot}"]`)).toBeFocused()
+  await page.keyboard.press("Control+z")
+  await expect(status(page)).toContainText("Emil T. er tatt av")
+})
+
+test("Escape closes the popup like Avbryt", async ({ page }) => {
+  await person(page, "Emil T.").click()
+  await place(page, /^Skiftleder torsdag 3\. desember, Dagskift/).click()
+  await expect(page.getByRole("alertdialog")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("alertdialog")).toHaveCount(0)
+})
+
+test("the popup has no automatic accessibility violations", async ({
+  page,
+}) => {
+  await person(page, "Emil T.").click()
+  await place(page, /^Skiftleder torsdag 3\. desember, Dagskift/).click()
+  await expect(page.getByRole("alertdialog")).toBeVisible()
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze()
+  expect(results.violations.map(v => `${v.id}: ${v.nodes.length}`)).toEqual([])
+})
+
+test("people show planned hours for the week", async ({ page }) => {
+  // People without a shift show no hours; those with one do.
+  await expect(
+    people(page).getByRole("button").filter({ hasText: /\d+ t/ }).first(),
+  ).toBeVisible()
 })
 
 test("Escape closes the panel and returns focus to the place", async ({
