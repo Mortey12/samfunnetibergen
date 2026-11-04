@@ -468,6 +468,40 @@
   }
   .week-grid table {
     min-width: 0 !important;
+    font-size: 8.5pt;
+  }
+  /* A row stays whole on one page, and the header row repeats if the week
+     runs onto a second page. */
+  .week-grid tr {
+    break-inside: avoid;
+  }
+  .week-grid thead {
+    display: table-header-group;
+  }
+  /* Plain ink on white: no tints, no shadows, no sticky column. Colour is
+     never the only thing that says what a place is (the words are there). */
+  .week-grid th,
+  .week-grid td,
+  .week-grid button {
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+  .week-grid th[scope="row"] {
+    position: static !important;
+  }
+  .week-grid button[data-slot] {
+    min-height: 0 !important;
+    padding: 1mm 1.5mm !important;
+    border: 0.25mm solid #555555 !important;
+  }
+  /* An empty place is a dashed box, so it is easy to see on paper. */
+  .week-grid button[data-slot].border-dashed {
+    border-style: dashed !important;
+  }
+  .week-grid [data-wishes] {
+    font-size: 7.5pt;
   }
 }
 

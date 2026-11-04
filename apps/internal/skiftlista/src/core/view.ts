@@ -74,6 +74,38 @@ export function changedBy(changed: { by: string; at: string } | null): string {
   return `Sist endret av ${changed.by}, kl. ${time}.`
 }
 
+/**
+ * Who said "vil" and "kan" for a shift and is not already on it, by name.
+ * These are the people a leader can still place there.
+ */
+export function wishNames(
+  board: WeekBoard,
+  shift: Shift,
+): { vil: string[]; kan: string[] } {
+  const placed = new Set(
+    shift.places.flatMap(place =>
+      place.assignment && !place.assignment.cannot_attend
+        ? [place.assignment.volunteer_id]
+        : [],
+    ),
+  )
+  const names = (wanted: Answer) =>
+    board.people
+      .filter(
+        person =>
+          !placed.has(person.volunteer_id) &&
+          shift.answers[String(person.volunteer_id)] === wanted,
+      )
+      .map(person => person.name)
+      .sort((a, b) => a.localeCompare(b, "nb"))
+  return { vil: names("vil"), kan: names("kan") }
+}
+
+/** "opplæring 2/3" from the server, started with a capital letter. */
+export function trainingText(training: string | null): string | null {
+  return training ? training.charAt(0).toUpperCase() + training.slice(1) : null
+}
+
 export function firstName(name: string): string {
   return name.split(" ")[0]
 }

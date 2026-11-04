@@ -13,6 +13,7 @@ import {
   KIND_LABEL,
   levelOf,
   personById,
+  trainingText,
 } from "../core/view"
 import { cn } from "../lib/cn"
 
@@ -106,6 +107,7 @@ const detail = $derived.by(() => {
   if (sick) return "Kan ikke i dag, trenger erstatter"
   if (open && selected && fit && !fit.ok) return fit.reason
   if (suggested && place.suggestion) return place.suggestion.why
+  if (person) return trainingText(assignment?.training ?? null)
   return null
 })
 const warnings = $derived(offer?.warnings ?? problems)

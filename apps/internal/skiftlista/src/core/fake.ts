@@ -384,6 +384,17 @@ function seedPlacements(store: Store) {
     place => place.assignment && place.kind === "skjenker",
   )
   if (sick?.assignment) sick.assignment.cannot_attend = true
+  // One person in training, so "Opplæring 2/3" can be seen on the place.
+  const trainee = store.shifts
+    .filter(shift => shift.bar_id === 11)
+    .flatMap(shift => shift.places)
+    .find(
+      place =>
+        place.kind === "skjenker" &&
+        place.assignment &&
+        !place.assignment.cannot_attend,
+    )
+  if (trainee?.assignment) trainee.assignment.training = "opplæring 2/3"
   seedSuggestions(store)
 }
 

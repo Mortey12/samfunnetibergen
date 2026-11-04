@@ -782,3 +782,35 @@ test("the kitchen has cooks and no skiftleder, and plus adds a cook", async ({
   await expect(page.locator("[data-plus]").first()).toContainText("+")
   await expect(page.getByText("Kokk: 2").first()).toBeVisible()
 })
+
+test("a person in training shows how far they have come on the place", async ({
+  page,
+}) => {
+  await expect(
+    page.locator("[data-slot]").filter({ hasText: "Opplæring 2/3" }),
+  ).toHaveCount(1)
+})
+
+test("each shift lists by name who said vil and kan", async ({ page }) => {
+  const lists = page.locator("[data-wishes]")
+  expect(await lists.count()).toBeGreaterThan(0)
+  await expect(lists.first()).toContainText(/Vil:|Kan:/)
+  // The names are the short form used everywhere else ("Ingrid V.").
+  await expect(lists.first()).toContainText(/[A-ZÆØÅ][a-zæøå]+ [A-ZÆØÅ]\./)
+})
+
+test("print: names stay, counts and buttons go, colours are plain", async ({
+  page,
+}) => {
+  await page.emulateMedia({ media: "print" })
+  await expect(page.locator("[data-wishes]").first()).toBeVisible()
+  await expect(page.getByText(/\d+ vil · \d+ kan/).first()).toBeHidden()
+  const box = page.locator("[data-slot]").first()
+  expect(await box.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(
+    "rgb(255, 255, 255)",
+  )
+  const rowHeader = page.locator("tbody th[scope='row']").first()
+  expect(await rowHeader.evaluate(el => getComputedStyle(el).position)).toBe(
+    "static",
+  )
+})

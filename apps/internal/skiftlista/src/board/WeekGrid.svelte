@@ -11,6 +11,7 @@ import {
   longDate,
   shiftAt,
   weekDays,
+  wishNames,
 } from "../core/view"
 import { cn } from "../lib/cn"
 import PlaceBox from "./PlaceBox.svelte"
@@ -60,6 +61,13 @@ function busyMark(day: string): string | null {
       ),
   )
   return here ? "· Satt opp" : "· Opptatt"
+}
+
+// Four names fit in a day column; the rest are "+n".
+function nameList(names: string[]): string {
+  return names.length <= 4
+    ? names.join(", ")
+    : `${names.slice(0, 4).join(", ")} +${names.length - 4}`
 }
 
 function counts(answers: Record<string, string>) {
@@ -195,6 +203,7 @@ function counts(answers: Record<string, string>) {
             >
               {#if shift}
                 {@const total = counts(shift.answers)}
+                {@const wishes = wishNames(props.board, shift)}
                 {@const selectedAnswer = props.selected
                   ? (answerOf(shift, props.selected.volunteer_id) ?? "none")
                   : null}
@@ -223,7 +232,7 @@ function counts(answers: Record<string, string>) {
                     {/each}
                   {/if}
                   <p
-                    class="flex flex-wrap justify-between gap-x-2 text-xs text-foreground-muted"
+                    class="noprint flex flex-wrap justify-between gap-x-2 text-xs text-foreground-muted"
                   >
                     <span>{total.vil} vil · {total.kan} kan</span>
                     {#if props.selected && selectedAnswer}
@@ -234,6 +243,25 @@ function counts(answers: Record<string, string>) {
                       </span>
                     {/if}
                   </p>
+                  {#if wishes.vil.length || wishes.kan.length}
+                    <p
+                      data-wishes={shift.shift_id}
+                      class="text-[0.7rem] leading-snug text-foreground-muted"
+                    >
+                      {#if wishes.vil.length}
+                        <span class="block">
+                          <span class="font-heading">Vil:</span>
+                          {nameList(wishes.vil)}
+                        </span>
+                      {/if}
+                      {#if wishes.kan.length}
+                        <span class="block">
+                          <span class="font-heading">Kan:</span>
+                          {nameList(wishes.kan)}
+                        </span>
+                      {/if}
+                    </p>
+                  {/if}
                 </div>
               {/if}
             </td>

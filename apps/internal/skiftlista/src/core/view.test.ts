@@ -11,6 +11,8 @@ import {
   hoursText,
   matches,
   summarize,
+  trainingText,
+  wishNames,
 } from "./view"
 
 describe("search", () => {
@@ -245,5 +247,35 @@ describe("asking before a risky placement", () => {
     expect(asked?.warnings.map(note => note.text)).toContain(
       "Har skift samme dag",
     )
+  })
+})
+
+describe("wishes by name", () => {
+  const board = buildBoard(createStore(), 11, FIRST_WEEK)
+
+  it("lists who said vil or kan and is not already on the shift", () => {
+    const shift = board.shifts[0]
+    const placed = new Set(
+      shift.places.flatMap(place =>
+        place.assignment && !place.assignment.cannot_attend
+          ? [place.assignment.volunteer_id]
+          : [],
+      ),
+    )
+    const { vil, kan } = wishNames(board, shift)
+    const named = (names: string[]) =>
+      board.people.filter(person => names.includes(person.name))
+    for (const person of [...named(vil), ...named(kan)])
+      expect(placed.has(person.volunteer_id)).toBe(false)
+    for (const person of named(vil))
+      expect(shift.answers[String(person.volunteer_id)]).toBe("vil")
+    for (const person of named(kan))
+      expect(shift.answers[String(person.volunteer_id)]).toBe("kan")
+    expect(vil).toEqual([...vil].sort((a, b) => a.localeCompare(b, "nb")))
+  })
+
+  it("starts the training text with a capital letter", () => {
+    expect(trainingText("opplæring 2/3")).toBe("Opplæring 2/3")
+    expect(trainingText(null)).toBeNull()
   })
 })
