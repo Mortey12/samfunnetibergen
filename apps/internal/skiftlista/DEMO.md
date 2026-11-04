@@ -44,9 +44,9 @@ You should see: a line ending in `skiftlista/leader-api -> skiftlista/leader-api
 
     git status --short
 
-You should see: `M apps/skiftlista/.gitignore`, `M apps/skiftlista/package.json`, `?? apps/skiftlista/DEMO.md`, `?? apps/skiftlista/demo/vercel.json`.
+You should see: `M apps/internal/skiftlista/.gitignore`, `M apps/internal/skiftlista/package.json`, `?? apps/internal/skiftlista/DEMO.md`, `?? apps/internal/skiftlista/demo/vercel.json`.
 
-    git add apps/skiftlista
+    git add apps/internal/skiftlista
 
     git commit -m "feat(skiftlista): demo build and guide for Render and Vercel" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
@@ -104,7 +104,7 @@ If the deploy fails, open the log and look at the last red lines. A line about `
 
 ### 3.1 Build the demo version
 
-    cd ~/kvarteret/samfunnetibergen/apps/skiftlista
+    cd ~/kvarteret/samfunnetibergen/apps/internal/skiftlista
 
     npm run build:demo
 
@@ -124,7 +124,7 @@ You should see: "Success" or your email in the terminal.
 
 ### 3.3 Publish
 
-    cd ~/kvarteret/samfunnetibergen/apps/skiftlista/dist-demo
+    cd ~/kvarteret/samfunnetibergen/apps/internal/skiftlista/dist-demo
 
     npx vercel deploy --prod
 

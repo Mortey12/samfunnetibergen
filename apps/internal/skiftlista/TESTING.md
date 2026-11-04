@@ -993,7 +993,7 @@ You should see: It says Tests 44 passed (44).
 
 Go to the app folder:
 
-    cd apps/skiftlista
+    cd apps/internal/skiftlista
 
 Tell the test browser where its extra files are (needed on this computer):
 

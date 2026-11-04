@@ -266,7 +266,7 @@ You should see: the last line says 0 ERRORS 0 WARNINGS.
 
 You should see: Tests 44 passed (44).
 
-    cd ~/kvarteret/samfunnetibergen/apps/skiftlista
+    cd ~/kvarteret/samfunnetibergen/apps/internal/skiftlista
 
     export LD_LIBRARY_PATH=~/.cache/ms-playwright/syslibs/root/usr/lib/x86_64-linux-gnu
 

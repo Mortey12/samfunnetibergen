@@ -49,13 +49,13 @@ with a red warning and `needs_confirmation`, and `src/lib/ConfirmDialog.svelte`
     npm run test:skiftlista               # Vitest: the framework-free core
     npm --workspace @samfunnet/skiftlista run test:e2e   # Playwright: the whole page
     npm --workspace @samfunnet/skiftlista run build
-    npx --no-install biome check apps/skiftlista
+    npx --no-install biome check apps/internal/skiftlista
 
 `typecheck:skiftlista` and `test:skiftlista` are part of the root `typecheck`
 and `test` scripts, so CI runs them. The browser tests are not in CI yet.
 
 The browser tests need Chromium once: `npx playwright install chromium`
-(inside `apps/skiftlista`). On Linux it also needs a few system libraries:
+(inside `apps/internal/skiftlista`). On Linux it also needs a few system libraries:
 `sudo npx playwright install-deps chromium`. Without sudo, unpack them
 locally and point `LD_LIBRARY_PATH` at them:
 
@@ -68,12 +68,12 @@ locally and point `LD_LIBRARY_PATH` at them:
 
 - **TypeScript 6 in this workspace only.** `svelte-check` 4.7 supports
   TypeScript 5 and 6, not 7, which the rest of the repository uses. npm keeps
-  TypeScript 6 inside `apps/skiftlista/node_modules`. When `svelte-check`
+  TypeScript 6 inside `apps/internal/skiftlista/node_modules`. When `svelte-check`
   supports 7, drop the pin (or use `typescript@~6` plus
   `@typescript/native@npm:typescript@7` and `svelte-check --tsgo`).
 - **Biome sees only the `<script>` part of `.svelte` files.** It formats and
   lints that part, but would report everything used only in the markup as
-  unused, so `apps/skiftlista/biome.json` turns `noUnusedImports`,
+  unused, so `apps/internal/skiftlista/biome.json` turns `noUnusedImports`,
   `noUnusedVariables` and `useConst` off for `.svelte` files. The markup is
   not formatted by any tool; `prettier-plugin-svelte` is the option if that
   becomes a problem. Svelte's own accessibility checks run in `svelte-check`.
