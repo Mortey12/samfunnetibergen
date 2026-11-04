@@ -131,7 +131,7 @@ function pick(candidate: Candidate) {
                 : "text-warn-yellow",
             )}
           >
-            Problem: {assignment.problems.map(note => note.text).join(", ")}
+            {levelOf(assignment.problems) === "red" ? "Problem" : "Advarsel"}: {assignment.problems.map(note => note.text).join(", ")}
           </span>
         {/if}
       </p>

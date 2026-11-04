@@ -58,7 +58,7 @@ export function addableKinds(board: WeekBoard): PlaceKind[] {
 }
 
 export const STATUS_TEXT: Record<WeekStatus, string> = {
-  open: "Utkast: ikke synlig i appen",
+  open: "Utkast: ikke synlig for frivillige",
   published: "Publisert",
   changed_after_publish: "Endret etter publisering",
 }
@@ -185,6 +185,10 @@ export interface Summary {
   warnings: PlaceRef[]
   /** Places that must still be filled: the "ledige" chip. */
   open: PlaceRef[]
+  /** Places whose person asked for a swap. */
+  swaps: PlaceRef[]
+  /** Places whose person said "kan ikke i dag": a replacement is needed. */
+  sick: PlaceRef[]
   withoutShift: Person[]
   answered: number
   notAnswered: Person[]
@@ -204,6 +208,12 @@ export function summarize(board: WeekBoard): Summary {
         levelOf(ref.place.assignment?.problems ?? []) === "yellow",
     ),
     open: places.filter(ref => isNeeded(ref.place)),
+    swaps: places.filter(
+      ref =>
+        ref.place.assignment?.swap_requested &&
+        !ref.place.assignment.cannot_attend,
+    ),
+    sick: places.filter(ref => ref.place.assignment?.cannot_attend),
     withoutShift: board.people.filter(
       person => person.answer_status !== "ikke_svart" && !person.week_shifts,
     ),
@@ -270,7 +280,9 @@ export function filterPeople(
     .filter(
       person =>
         filter === "alle" ||
-        (filter === "uten_skift" && person.week_shifts === 0) ||
+        (filter === "uten_skift" &&
+          person.answer_status !== "ikke_svart" &&
+          person.week_shifts === 0) ||
         (filter === "skiftledere" && person.is_skiftleder) ||
         (filter === "ikke_svart" && person.answer_status === "ikke_svart"),
     )
@@ -306,12 +318,15 @@ export function hoursText(minutes: number): string {
 export interface Confirmation {
   person: Person
   place: PlaceRef
+  /** One sentence naming the person and the place and why we ask. */
+  subject: string
   warnings: Note[]
 }
 
 /**
- * The popup case: placing a person the server marked `needs_confirmation`
- * (and the leader has not confirmed yet). Swaps and undo actions never ask.
+ * The popup case: placing a person the server marked `needs_confirmation`,
+ * who answered "kan ikke" for the shift, or whom the server warns about in
+ * red (and the leader has not confirmed yet). Swaps and undo actions never ask.
  */
 export function confirmationFor(board: WeekBoard, op: Op): Confirmation | null {
   if (op.type !== "place" && op.type !== "replace" && op.type !== "move")
@@ -324,8 +339,25 @@ export function confirmationFor(board: WeekBoard, op: Op): Confirmation | null {
   const fit = fitOf(board, volunteerId, slotId)
   const person = personById(board, volunteerId)
   const place = placeRef(board, slotId)
-  if (!fit?.ok || !fit.needs_confirmation || !person || !place) return null
-  return { person, place, warnings: fit.warnings }
+  if (!fit?.ok || !person || !place) return null
+  const refused = answerOf(place.shift, volunteerId) === "nei"
+  const warnings: Note[] = [...fit.warnings]
+  // The server may already warn about the answer; say it once.
+  const alreadySaid = warnings.some(note => /kan ikke/i.test(note.text))
+  if (refused && !alreadySaid)
+    warnings.unshift({
+      text: "Svarte «kan ikke» for dette skiftet.",
+      level: "red",
+    })
+  const mustAsk =
+    fit.needs_confirmation === true ||
+    refused ||
+    warnings.some(note => note.level === "red")
+  if (!mustAsk) return null
+  const subject = fit.needs_confirmation
+    ? `${person.name} har ikke det som trengs for ${placeName(place)}.`
+    : `Sjekk advarslene før du setter inn ${person.name}: ${placeName(place)}.`
+  return { person, place, subject, warnings }
 }
 
 /**
@@ -347,9 +379,9 @@ export function candidates(
     unqualified: [],
   }
   const slotId = ref.place.slot_id
-  const current = ref.place.assignment?.cannot_attend
-    ? null
-    : ref.place.assignment?.volunteer_id
+  // The person on the place is never their own replacement, also not when
+  // they said "kan ikke i dag".
+  const current = ref.place.assignment?.volunteer_id ?? null
   for (const person of board.people) {
     if (person.volunteer_id === current) continue
     const fit =

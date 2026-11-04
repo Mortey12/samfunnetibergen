@@ -20,6 +20,19 @@ proxies `/personal/*`, `/login`, `/logout` and `/static/*` to `PERSONAL_URL`
 (default `http://localhost:8000`), so the browser sees one origin. A local
 Personal needs `LEADER_APP_ORIGINS=http://localhost:3190` in its `.env`.
 
+## Export the week
+
+"Last ned CSV" in the toolbar saves the week on screen as a flat table, one row
+per place: date, weekday, week, bar, shift, time, role, person, note and week
+status. The browser builds the file from the data already on the page, so
+nothing is sent anywhere and no extra permission is involved. It is written for
+Norwegian Excel and Google Sheets: semicolons between columns, dates as
+`dd.mm.yyyy`, and a byte order mark so æ, ø and å show correctly. A cell that
+starts with `=`, `+`, `-` or `@` gets a leading apostrophe so a name can never
+run as a spreadsheet formula. The format is the same shape as the "Arkiv" sheet
+in the current shift list, so it can be pasted straight into that backup. The
+code is `src/core/export.ts` and its tests are `src/core/export.test.ts`.
+
 ## Checks
 
 ```bash
@@ -81,11 +94,25 @@ The seed scripts live in `kvarteret-personal/scripts/dev/`: `seed_synthetic.py`
 and `bootstrap.py` (runs the first two for local development). The data is fake
 and relative to the date it was seeded, so an old database needs seeding again.
 
-Every one of these scripts refuses a hosted database unless
-`DEMO_SEED_CONFIRM` is set to exactly the database's host name. Local
-databases (`localhost`, `127.0.0.1`) need nothing. The check cannot tell which
-hosted database is production, so never confirm a production host. Use it only
-for a demo or preview database that holds fake data.
+Every one of these scripts runs two checks before it writes anything:
+
+- **Where.** A local database (`localhost`, `127.0.0.1`) needs nothing. A hosted one
+  needs `DEMO_SEED_CONFIRM` set to the whole target, written
+  `user@host:port/database` without the password. The script prints the exact
+  value when it refuses. The host name alone is not enough: Supabase's pooler host
+  is shared by every project in a region, and the user name tells them apart.
+- **What is already there.** Whatever the URL says, a script refuses when the
+  database holds a volunteer or a user account whose email is empty or does not
+  end in `@example.dev` (the dev admin account is allowed). A tunnel on
+  `localhost` that leads to a real database passes the first check and stops here.
+
+This is still a guard against mistakes, not a lock on production. Use the
+confirmation only for a demo or preview database that holds fake data.
+
+The demo login has its own check: it refuses to start, and refuses every login,
+if any stored email address (people, accounts, applications, invites, the email
+outbox) is empty or outside `@example.dev`. It looks again at least once a
+minute, so a real person who arrives later is noticed.
 
 ## Production
 

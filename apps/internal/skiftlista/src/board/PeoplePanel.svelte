@@ -49,7 +49,7 @@ function meta(person: Person): string {
     parts.push("ikke svart")
   }
   parts.push(
-    `${person.week_shifts} uka · ${person.month_shifts} mnd${person.week_minutes ? ` · ${hoursText(person.week_minutes)}` : ""}`,
+    `${person.week_shifts} skift i uka · ${person.month_shifts} i måneden${person.week_minutes ? ` · ${hoursText(person.week_minutes)}` : ""}`,
   )
   if (person.max_shifts !== null) parts.push(`maks ${person.max_shifts}`)
   parts.push(...person.tags)
@@ -152,7 +152,7 @@ function meta(person: Person): string {
           <span class="flex items-baseline justify-between gap-2">
             <span class="font-heading">{person.name}</span>
             {#if person.is_skiftleder}
-              <span class="text-xs" title="Godkjent skiftleder">SL</span>
+              <span class="text-xs" title="Godkjent skiftleder">Skiftleder</span>
             {/if}
           </span>
           <span

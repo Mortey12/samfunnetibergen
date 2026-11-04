@@ -312,6 +312,16 @@ test("making the week a draft sends PUT status for the bar", async ({
   await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
   // The recorded week is published, so the button offers a draft.
   await page.getByRole("button", { name: "Gjør til utkast" }).click()
+  // Hiding the week from volunteers asks first; Avbryt sends nothing.
+  const dialog = page.getByRole("alertdialog", {
+    name: "Gjøre uka til utkast?",
+  })
+  await expect(dialog).toContainText("Frivillige ser ikke skiftene sine")
+  await dialog.getByRole("button", { name: "Avbryt" }).click()
+  await expect(dialog).toBeHidden()
+  expect(asked.writes).toHaveLength(0)
+  await page.getByRole("button", { name: "Gjør til utkast" }).click()
+  await dialog.getByRole("button", { name: "Gjør til utkast" }).click()
 
   await expect.poll(() => asked.writes.length).toBe(1)
   expect(asked.writes[0].method).toBe("PUT")
@@ -446,4 +456,27 @@ test("a refusal of minus shows Personal's text", async ({ page }) => {
   await expect(
     page.getByRole("alert").or(page.getByRole("status")),
   ).toContainText("er i bruk")
+})
+
+test("a write that cannot reach Personal says it was not saved", async ({
+  page,
+}) => {
+  const asked = await mockPersonal(page)
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  // The connection drops for writes only; reading still works.
+  await page.route("**/weeks/*/status*", route =>
+    route.abort("connectionfailed"),
+  )
+  await page.getByRole("button", { name: "Gjør til utkast" }).click()
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Gjør til utkast" })
+    .click()
+  await expect(page.getByRole("status")).toContainText(
+    "Ikke lagret: fikk ikke kontakt med Personal",
+  )
+  // The week is still on screen and still published.
+  await expect(page.getByText("Publisert", { exact: true })).toBeVisible()
+  expect(asked.writes).toHaveLength(0)
 })

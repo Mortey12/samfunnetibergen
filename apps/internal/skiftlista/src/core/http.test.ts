@@ -363,3 +363,71 @@ describe("writes", () => {
     expect(calls).toHaveLength(0)
   })
 })
+
+describe("an expired security code", () => {
+  /** Personal hands out `tokens` one by one on GET /me and checks them on writes. */
+  function server(tokens: string[], accepts: string, meStatus: number[] = []) {
+    const writes: string[] = []
+    let meCalls = 0
+    const api = createHttpApi((async (url: string, init: RequestInit = {}) => {
+      if (url.endsWith("/me")) {
+        const status = meStatus[meCalls] ?? 200
+        const token = tokens[Math.min(meCalls, tokens.length - 1)]
+        meCalls += 1
+        return new Response(
+          JSON.stringify(
+            status === 200
+              ? { name: "Leder", role: "Admin", csrf_token: token, bars: [] }
+              : { detail: "Authentication required." },
+          ),
+          { status },
+        )
+      }
+      const sent = (init.headers as Record<string, string>)["X-CSRF-Token"]
+      writes.push(sent)
+      return sent === accepts
+        ? new Response(
+            JSON.stringify({
+              message: "Gjort.",
+              warnings: [],
+              board: wireBoard(),
+            }),
+            { status: 200 },
+          )
+        : new Response(
+            JSON.stringify({
+              detail:
+                "Sikkerhetskoden mangler eller er utløpt. Last siden på nytt.",
+            }),
+            { status: 403 },
+          )
+    }) as typeof fetch)
+    return { api, writes }
+  }
+
+  it("asks for a new code and tries the write once more", async () => {
+    const { api, writes } = server(["old", "new"], "new")
+    await api.me()
+    const result = await api.remove(toBoard(wireBoard()), 9)
+    expect(result.message).toBe("Gjort.")
+    expect(writes).toEqual(["old", "new"])
+  })
+
+  it("does not try again when the code is the same (a real refusal)", async () => {
+    const { api, writes } = server(["same"], "something else")
+    await api.me()
+    await expect(api.remove(toBoard(wireBoard()), 9)).rejects.toThrow(
+      "Last siden på nytt",
+    )
+    expect(writes).toEqual(["same"])
+  })
+
+  it("says not signed in when the session is gone while the code is refreshed", async () => {
+    const { api, writes } = server(["old"], "new", [200, 401])
+    await api.me()
+    await expect(api.remove(toBoard(wireBoard()), 9)).rejects.toBeInstanceOf(
+      NotSignedInError,
+    )
+    expect(writes).toEqual(["old"])
+  })
+})

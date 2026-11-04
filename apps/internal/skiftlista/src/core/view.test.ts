@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest"
 import { buildBoard, createStore, FIRST_WEEK, minutesBetween } from "./fake"
 import {
   addableKinds,
+  allPlaces,
+  candidates,
   changedBy,
+  confirmationFor,
   filterPeople,
   fold,
   hoursText,
@@ -119,5 +122,128 @@ describe("who changed the week", () => {
 
   it("says nothing when nobody changed it", () => {
     expect(changedBy(null)).toBe("")
+  })
+})
+
+describe("sick days and swap requests", () => {
+  const board = buildBoard(createStore(), 11, FIRST_WEEK)
+
+  it("lists the places where someone said kan ikke i dag", () => {
+    const summary = summarize(board)
+    expect(summary.sick.length).toBeGreaterThan(0)
+    for (const ref of summary.sick)
+      expect(ref.place.assignment?.cannot_attend).toBe(true)
+  })
+
+  it("never offers the sick person as their own replacement", () => {
+    const sick = summarize(board).sick[0]
+    const sickId = sick.place.assignment?.volunteer_id
+    const groups = candidates(board, sick)
+    const offered = Object.values(groups).flatMap(list =>
+      list.map(item => item.person.volunteer_id),
+    )
+    expect(offered).not.toContain(sickId)
+    expect(offered.length).toBeGreaterThan(0)
+  })
+
+  it("lists swap requests, and leaves out a person who cannot come at all", () => {
+    const copy = structuredClone(board)
+    const placed = allPlaces(copy).filter(
+      ref => ref.place.assignment && !ref.place.assignment.cannot_attend,
+    )
+    expect(placed.length).toBeGreaterThan(1)
+    const first = placed[0].place.assignment
+    if (!first) throw new Error("a placed person has an assignment")
+    first.swap_requested = true
+    const sick = allPlaces(copy).find(
+      ref => ref.place.assignment?.cannot_attend,
+    )
+    if (sick?.place.assignment) sick.place.assignment.swap_requested = true
+    const swaps = summarize(copy).swaps
+    expect(swaps.map(ref => ref.place.slot_id)).toEqual([
+      placed[0].place.slot_id,
+    ])
+  })
+})
+
+describe("the filter and the chip agree", () => {
+  it("Uten skift lists exactly the people the chip counts", () => {
+    const board = buildBoard(createStore(), 11, FIRST_WEEK)
+    const listed = filterPeople(board, "", "uten_skift", null)
+    expect(listed.map(person => person.volunteer_id).sort()).toEqual(
+      summarize(board)
+        .withoutShift.map(person => person.volunteer_id)
+        .sort(),
+    )
+  })
+})
+
+describe("asking before a risky placement", () => {
+  const board = buildBoard(createStore(), 11, FIRST_WEEK)
+
+  /** An open place and a person who fits it without any warning. */
+  function easyPair() {
+    for (const ref of allPlaces(board)) {
+      if (ref.place.assignment) continue
+      for (const person of board.people) {
+        const fit = board.fit[person.volunteer_id]?.[ref.place.slot_id]
+        if (fit?.ok && !fit.needs_confirmation && !fit.warnings.length)
+          return { ref, person }
+      }
+    }
+    throw new Error("no easy pair in the fake week")
+  }
+
+  it("asks nothing when the person fits and did not refuse", () => {
+    const { ref, person } = easyPair()
+    const copy = structuredClone(board)
+    for (const shift of copy.shifts)
+      if (shift.shift_id === ref.shift.shift_id)
+        shift.answers[person.volunteer_id] = "vil"
+    const op = {
+      type: "place" as const,
+      slotId: ref.place.slot_id,
+      volunteerId: person.volunteer_id,
+    }
+    expect(confirmationFor(copy, op)).toBeNull()
+  })
+
+  it("asks when the person answered kan ikke for that shift", () => {
+    const { ref, person } = easyPair()
+    const copy = structuredClone(board)
+    for (const shift of copy.shifts)
+      if (shift.shift_id === ref.shift.shift_id)
+        shift.answers[person.volunteer_id] = "nei"
+    const op = {
+      type: "place" as const,
+      slotId: ref.place.slot_id,
+      volunteerId: person.volunteer_id,
+    }
+    const asked = confirmationFor(copy, op)
+    expect(asked?.warnings[0]).toEqual({
+      text: "Svarte «kan ikke» for dette skiftet.",
+      level: "red",
+    })
+    expect(asked?.subject).toContain("Sjekk advarslene")
+    expect(confirmationFor(copy, { ...op, confirmed: true })).toBeNull()
+  })
+
+  it("asks when the server warns in red even without a missing approval", () => {
+    const { ref, person } = easyPair()
+    const copy = structuredClone(board)
+    const fit = copy.fit[person.volunteer_id][ref.place.slot_id]
+    if (!fit.ok) throw new Error("fit should be ok")
+    fit.warnings = [{ text: "Har skift samme dag", level: "red" }]
+    for (const shift of copy.shifts)
+      if (shift.shift_id === ref.shift.shift_id)
+        shift.answers[person.volunteer_id] = "vil"
+    const asked = confirmationFor(copy, {
+      type: "place",
+      slotId: ref.place.slot_id,
+      volunteerId: person.volunteer_id,
+    })
+    expect(asked?.warnings.map(note => note.text)).toContain(
+      "Har skift samme dag",
+    )
   })
 })

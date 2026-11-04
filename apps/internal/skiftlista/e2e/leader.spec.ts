@@ -11,6 +11,12 @@ const people = (page: Page) => page.getByRole("list", { name: "Personer" })
 const person = (page: Page, name: string) =>
   people(page).getByRole("button").filter({ hasText: name })
 const places = (page: Page) => page.locator("[data-slot]")
+/** An offer "Sett inn <name>" that places at once: the person did not answer kan ikke there. */
+const easyOffer = (page: Page, name: string) =>
+  places(page)
+    .filter({ hasText: `Sett inn ${name}` })
+    .filter({ hasNotText: "bekreftelse" })
+    .first()
 const place = (page: Page, label: RegExp) =>
   page.locator("[data-slot]").and(page.getByRole("button", { name: label }))
 
@@ -44,7 +50,7 @@ test("person first: select, place, focus returns, Ctrl+Z undoes", async ({
   await emil.click()
   await expect(emil).toHaveAttribute("aria-pressed", "true")
 
-  const offer = places(page).filter({ hasText: "Sett inn Emil" }).first()
+  const offer = easyOffer(page, "Emil")
   const slot = await slotOf(offer)
   await offer.click()
   await expect(status(page)).toContainText("Emil T. er satt opp som")
@@ -233,7 +239,7 @@ test("publish, then a change marks the week as changed", async ({ page }) => {
     page.getByRole("button", { name: "Gjør til utkast" }),
   ).toBeVisible()
   await person(page, "Emil T.").click()
-  await places(page).filter({ hasText: "Sett inn Emil" }).first().click()
+  await easyOffer(page, "Emil").click()
   await expect(
     page.getByText("Endret etter publisering", { exact: true }),
   ).toBeVisible()
@@ -281,7 +287,7 @@ test("keyboard only: select with Enter and place with Enter", async ({
   await page.keyboard.press("Enter")
   await person(page, "Emil T.").focus()
   await page.keyboard.press("Enter")
-  const offer = places(page).filter({ hasText: "Sett inn Emil" }).first()
+  const offer = easyOffer(page, "Emil")
   await offer.focus()
   await page.keyboard.press("Enter")
   await expect(status(page)).toContainText("Emil T. er satt opp som")
@@ -360,14 +366,16 @@ test("an unpublished week says so, and the banner follows the status", async ({
 }) => {
   const banner = page.getByRole("region", { name: "Publisering" })
   await expect(banner).toContainText("Uka er ikke publisert.")
-  await expect(banner).toContainText("Folk ser ikke skiftene sine i appen")
+  await expect(banner).toContainText(
+    "Frivillige ser ikke skiftene sine før du trykker",
+  )
 
   await page.getByRole("button", { name: "Publiser uka" }).click()
   await expect(banner).toBeHidden()
 
   // A change after publishing brings it back with other words.
   await person(page, "Emil T.").click()
-  await places(page).filter({ hasText: "Sett inn Emil" }).first().click()
+  await easyOffer(page, "Emil").click()
   await expect(banner).toContainText("Uka er endret etter publisering.")
   await expect(banner).toContainText("Trykk «Publiser uka» igjen")
   await expect(banner).toContainText(
@@ -481,4 +489,75 @@ test("axe passes with the plus and minus buttons on the page", async ({
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze()
   expect(results.violations.map(v => `${v.id}: ${v.nodes.length}`)).toEqual([])
+})
+
+test("Last ned CSV saves the week as one row per place, readable in Excel", async ({
+  page,
+}) => {
+  const download = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Last ned CSV" }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe("skiftliste-stjerne-uke-49.csv")
+
+  const path = await file.path()
+  const { readFileSync } = await import("node:fs")
+  const text = readFileSync(path, "utf8")
+  // The byte order mark that makes æ ø å show right in Excel, then the header.
+  expect(text.startsWith("﻿Dato;Ukedag;Uke;Bar;Skift;Tid;Rolle;")).toBe(true)
+  const lines = text.trimEnd().split("\r\n")
+  expect(lines.length).toBeGreaterThan(10)
+  // Every row has the ten columns, and the fake week names a placed person.
+  for (const line of lines)
+    expect(line.split(";").length).toBeGreaterThanOrEqual(10)
+  expect(text).toContain("Stjerne")
+  expect(text).toContain(";Skjenker;")
+})
+
+test("publishing cannot be undone with Ctrl+Z", async ({ page }) => {
+  await page.getByRole("button", { name: "Publiser uka" }).click()
+  await expect(page.getByText("Publisert", { exact: true })).toBeVisible()
+  // Nothing to undo: the Angre button stays off and Ctrl+Z does not unpublish.
+  await expect(page.getByRole("button", { name: /^Angre/ })).toBeDisabled()
+  await page.keyboard.press("Control+z")
+  await expect(page.getByText("Publisert", { exact: true })).toBeVisible()
+})
+
+test("a sick person is not offered as their own replacement", async ({
+  page,
+}) => {
+  const sick = page
+    .locator("[data-slot]")
+    .filter({ hasText: "trenger erstatter" })
+    .first()
+  await sick.click()
+  const sickName = (await sick.locator("span").nth(1).innerText()).trim()
+  const panel = page.getByRole("complementary").or(page.getByRole("dialog"))
+  await expect(panel.first()).toBeVisible()
+  await expect(
+    panel.first().getByRole("button", { name: new RegExp(sickName) }),
+  ).toHaveCount(0)
+})
+
+test("the chips list sick days", async ({ page }) => {
+  await expect(
+    page.getByRole("button", { name: /^\d+ trenger erstatter$/ }),
+  ).toBeVisible()
+})
+
+test("placing someone who answered kan ikke asks first", async ({ page }) => {
+  await page.getByRole("button", { name: "Uten skift", exact: true }).click()
+  await person(page, "Emil T.").click()
+  const asking = places(page)
+    .filter({ hasText: "Sett inn Emil" })
+    .filter({ hasText: "krever bekreftelse" })
+    .filter({ hasText: "erstatter" })
+    .first()
+  await expect(asking).toBeVisible()
+  await asking.click()
+  const dialog = page.getByRole("alertdialog")
+  await expect(dialog).toContainText(/kan ikke/i)
+  await dialog.getByRole("button", { name: "Avbryt" }).click()
+  await expect(dialog).toBeHidden()
+  // Nothing was placed.
+  await expect(asking).toContainText("Sett inn Emil")
 })

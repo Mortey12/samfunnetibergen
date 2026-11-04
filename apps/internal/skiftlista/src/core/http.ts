@@ -155,6 +155,11 @@ interface WireWriteResult {
 export function createHttpApi(fetchFn: typeof fetch = fetch): LeaderApi {
   let csrfToken = ""
 
+  async function refreshToken(): Promise<void> {
+    const response = await fetchFn(`${BASE}/me`, { credentials: "same-origin" })
+    csrfToken = (await readJson<LeaderMe>(response)).csrf_token
+  }
+
   async function write(
     method: "POST" | "PUT" | "DELETE",
     path: string,
@@ -170,17 +175,31 @@ export function createHttpApi(fetchFn: typeof fetch = fetch): LeaderApi {
       ...(options.week === false ? {} : { week_start: board.week_start }),
       ...options.query,
     })
-    const response = await fetchFn(`${BASE}${path}?${query}`, {
-      method,
-      credentials: "same-origin",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": csrfToken,
-        "If-Match": board.version,
-      },
-      body:
-        options.body === undefined ? undefined : JSON.stringify(options.body),
-    })
+    const send = () =>
+      fetchFn(`${BASE}${path}?${query}`, {
+        method,
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+          "If-Match": board.version,
+        },
+        body:
+          options.body === undefined ? undefined : JSON.stringify(options.body),
+      })
+    let response = await send()
+    // A 403 can mean the security code ran out. Ask for a fresh one once and
+    // try again; if the code is the same, the 403 is a real refusal (for
+    // example a bar outside the leader's scope) and is shown as it is.
+    if (response.status === 403) {
+      const sent = csrfToken
+      try {
+        await refreshToken()
+      } catch (error) {
+        if (error instanceof NotSignedInError) throw error
+      }
+      if (csrfToken !== sent) response = await send()
+    }
     const result = await readJson<WireWriteResult>(response)
     return {
       message: result.message,

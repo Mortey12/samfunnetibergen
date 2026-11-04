@@ -102,6 +102,9 @@ locally and point `LD_LIBRARY_PATH` at them:
   Both are undone with "Angre" (each is the other's inverse). "−" never
   removes a person. Skiftleder and Opplæring have neither: a shift has exactly
   one skiftleder place, and training is a mode of a place, not a kind.
+- "Last ned CSV" saves the week as one row per place (see
+  `docs/how-to/skiftlista-leader-app.md`, "Export the week"). Open it in Excel
+  or Google Sheets.
 - Make the window narrower than 80rem (1280 px at 100 percent zoom): a place
   now opens in a sheet over the page instead of the side panel.
 

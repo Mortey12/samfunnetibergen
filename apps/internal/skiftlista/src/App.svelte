@@ -1,10 +1,17 @@
 <script lang="ts">
-import { ChevronLeft, ChevronRight, Printer, Undo2 } from "@lucide/svelte"
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Printer,
+  Undo2,
+} from "@lucide/svelte"
 import { untrack } from "svelte"
 import Chip from "./board/Chip.svelte"
 import PeoplePanel from "./board/PeoplePanel.svelte"
 import PlacePanel from "./board/PlacePanel.svelte"
 import WeekGrid from "./board/WeekGrid.svelte"
+import { csvFileName, weekToCsv } from "./core/export"
 import { addDays, FIRST_WEEK } from "./core/fake"
 import { NotSignedInError } from "./core/http"
 import {
@@ -48,9 +55,9 @@ import { selectionControlVariants } from "./lib/selection-control"
 import { Sheet, SheetContent } from "./lib/sheet"
 
 const UNPUBLISHED_HELP: Record<"open" | "changed_after_publish", string> = {
-  open: "Folk ser ikke skiftene sine i appen før du trykker «Publiser uka».",
+  open: "Frivillige ser ikke skiftene sine før du trykker «Publiser uka».",
   changed_after_publish:
-    "Trykk «Publiser uka» igjen når du er ferdig med endringene.",
+    "Endringene er lagret, og frivillige ser dem med en gang. Trykk «Publiser uka» igjen når du er ferdig.",
 }
 
 interface Message {
@@ -103,6 +110,8 @@ let filter = $state<Filter>("alle")
 let message = $state<Message | null>(null)
 let undo = $state<UndoEntry[]>([])
 let showMissing = $state(false)
+// "Gjør til utkast" hides the week from volunteers, so it asks first.
+let confirmUnpublish = $state(false)
 // The big warning: set when the leader tries to place someone who lacks what
 // the place needs; the action runs only after the popup is confirmed.
 let pendingConfirm = $state<{ op: Op; confirmation: Confirmation } | null>(null)
@@ -219,6 +228,49 @@ $effect(() => {
   pendingFocus = null
 })
 
+// Another leader may have changed the week while this tab was in the
+// background. When the tab comes back, read the week again (at most every 15
+// seconds, never in the middle of a write or a question) and say so if it changed.
+let lastRefresh = 0
+async function refreshWeek() {
+  const current = board
+  if (!current || busy || weekLoading || pendingConfirm || confirmUnpublish)
+    return
+  if (Date.now() - lastRefresh < 15_000) return
+  lastRefresh = Date.now()
+  try {
+    const fresh = await api.week(current.bar.id, current.week_start)
+    if (
+      board &&
+      !busy &&
+      fresh.version !== board.version &&
+      fresh.bar.id === board.bar.id &&
+      fresh.week_start === board.week_start
+    ) {
+      board = fresh
+      message = {
+        text: `Uka er oppdatert. ${changedBy(fresh.last_changed)}`.trim(),
+        warnings: [],
+        error: false,
+      }
+    }
+  } catch {
+    // Stay quiet: the next write says plainly if something is wrong.
+  }
+}
+
+$effect(() => {
+  const onReturn = () => {
+    if (document.visibilityState === "visible") void refreshWeek()
+  }
+  window.addEventListener("focus", onReturn)
+  document.addEventListener("visibilitychange", onReturn)
+  return () => {
+    window.removeEventListener("focus", onReturn)
+    document.removeEventListener("visibilitychange", onReturn)
+  }
+})
+
 function labelFor(op: Op, current: WeekBoard): string {
   const name = (id: number | null) =>
     id === null ? "" : (personById(current, id)?.name ?? "")
@@ -242,16 +294,27 @@ function labelFor(op: Op, current: WeekBoard): string {
   }
 }
 
-async function execute(op: Op, label: string, isUndo = false) {
+/** What the leader reads when a write did not go through. */
+function failureText(error: unknown): string {
+  if (error instanceof RefusedError) return error.message
+  if (error instanceof NotSignedInError)
+    return "Ikke lagret: du er ikke lenger logget inn i Personal."
+  return "Ikke lagret: fikk ikke kontakt med Personal. Sjekk nettet og prøv igjen."
+}
+
+/** `undone` is the undo entry this run takes back, if it is an undo. */
+async function execute(op: Op, label: string, undone: UndoEntry | null = null) {
   const current = board
   if (!current || busy) return
   busy = true
   try {
-    const inverse = isUndo ? null : inverseOf(op, current)
     const result = await run(api, current, op)
+    // The inverse is read from the answer, so it points at where the person is
+    // now, which can be another seat than the one dropped on.
+    const inverse = undone ? null : inverseOf(op, current, result.board)
     board = result.board
     message = { text: result.message, warnings: result.warnings, error: false }
-    if (isUndo) undo = undo.slice(0, -1)
+    if (undone) undo = undo.filter(entry => entry !== undone)
     else if (inverse)
       undo = pushUndo(undo, { weekKey: weekKeyOf(current), label, inverse })
     openSlot = null
@@ -269,12 +332,20 @@ async function execute(op: Op, label: string, isUndo = false) {
                 ? `[data-minus="${op.shiftId}-${op.kind}"]`
                 : null
   } catch (error) {
-    const text =
-      error instanceof RefusedError
-        ? error.message
-        : "Noe gikk galt. Prøv igjen."
-    message = { text, warnings: [], error: true }
-    board = await api.week(current.bar.id, current.week_start)
+    message = { text: failureText(error), warnings: [], error: true }
+    if (error instanceof NotSignedInError) loadError = describe(error)
+    // An undo that was refused can never work; drop it so it does not block
+    // the older ones. After a lost connection it stays, for another try.
+    if (undone && error instanceof RefusedError)
+      undo = undo.filter(entry => entry !== undone)
+    // Read the week again so the screen shows what the server has. If that
+    // fails too, the old week stays and the message above says it was not saved.
+    try {
+      board = await api.week(current.bar.id, current.week_start)
+    } catch (reloadError) {
+      if (reloadError instanceof NotSignedInError)
+        loadError = describe(reloadError)
+    }
   } finally {
     busy = false
   }
@@ -325,7 +396,18 @@ function cancelPending() {
 
 function undoLast() {
   const last = currentUndo.at(-1)
-  if (last) execute(last.inverse, last.label, true)
+  if (last) execute(last.inverse, last.label, last)
+}
+
+/** Saves the week shown as a CSV file: nothing is sent anywhere, the browser builds it. */
+function downloadCsv() {
+  if (!board) return
+  const file = new Blob([weekToCsv(board)], { type: "text/csv;charset=utf-8" })
+  const link = document.createElement("a")
+  link.href = URL.createObjectURL(file)
+  link.download = csvFileName(board)
+  link.click()
+  URL.revokeObjectURL(link.href)
 }
 
 function onPlaceClick(place: Place) {
@@ -366,6 +448,7 @@ function startMove(slotId: number) {
 }
 
 function changeWeek(start: string) {
+  message = null
   openSlot = null
   moveFrom = null
   focusDay = null
@@ -373,6 +456,7 @@ function changeWeek(start: string) {
 }
 
 function pickBar(id: number) {
+  message = null
   openSlot = null
   moveFrom = null
   selectedId = null
@@ -609,6 +693,28 @@ function problemTitle(refs: PlaceRef[]): string {
                 {summary.warnings.length === 1 ? "advarsel" : "advarsler"}
               </Chip>
             {/if}
+            {#if summary.sick.length}
+              <Chip
+                tone="red"
+                title={summary.sick.map(placeName).join("\n")}
+                onclick={() => {
+                  if (summary) openSlot = summary.sick[0].place.slot_id
+                }}
+              >
+                {summary.sick.length} trenger erstatter
+              </Chip>
+            {/if}
+            {#if summary.swaps.length}
+              <Chip
+                tone="yellow"
+                title={summary.swaps.map(placeName).join("\n")}
+                onclick={() => {
+                  if (summary) openSlot = summary.swaps[0].place.slot_id
+                }}
+              >
+                {summary.swaps.length} ønsker bytte
+              </Chip>
+            {/if}
             {#if summary.open.length}
               <Chip
                 title={summary.open.map(placeName).join("\n")}
@@ -653,11 +759,12 @@ function problemTitle(refs: PlaceRef[]): string {
             </button>
             <button
               type="button"
-              class={cn(selectionControlVariants(), "font-base")}
-              disabled
-              title="Kommer senere"
+              class={cn(selectionControlVariants(), "gap-2 font-base")}
+              title="Én rad per plass, åpnes i Excel og Google Sheets"
+              onclick={downloadCsv}
             >
-              Lag forslag for uka
+              <Download aria-hidden="true" class="size-4" />
+              Last ned CSV
             </button>
             {#if board.status !== "published"}
               <button
@@ -673,7 +780,7 @@ function problemTitle(refs: PlaceRef[]): string {
                 type="button"
                 class={buttonVariants({ variant: "neutral" })}
                 disabled={busy}
-                onclick={() => doOp({ type: "status", status: "open" })}
+                onclick={() => (confirmUnpublish = true)}
               >
                 Gjør til utkast
               </button>
@@ -791,13 +898,28 @@ function problemTitle(refs: PlaceRef[]): string {
           </Sheet>
         {/if}
         <ConfirmDialog
+          open={confirmUnpublish}
+          title="Gjøre uka til utkast?"
+          subject={board ? `Uke ${board.week_number} for ${board.bar.name} er publisert nå.` : ""}
+          warnings={[
+            {
+              text: "Frivillige ser ikke skiftene sine før uka er publisert igjen.",
+              level: "red",
+            },
+          ]}
+          confirmLabel="Gjør til utkast"
+          onConfirm={() => {
+            confirmUnpublish = false
+            doOp({ type: "status", status: "open" })
+          }}
+          onCancel={() => (confirmUnpublish = false)}
+        />
+        <ConfirmDialog
           open={pendingConfirm !== null}
           title={pendingConfirm
             ? `Sette inn ${firstName(pendingConfirm.confirmation.person.name)} likevel?`
             : ""}
-          subject={pendingConfirm
-            ? `${pendingConfirm.confirmation.person.name} har ikke det som trengs for ${placeName(pendingConfirm.confirmation.place)}.`
-            : ""}
+          subject={pendingConfirm?.confirmation.subject ?? ""}
           warnings={pendingConfirm?.confirmation.warnings ?? []}
           confirmLabel="Sett inn likevel"
           onConfirm={confirmPending}

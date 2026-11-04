@@ -76,11 +76,25 @@ const label = $derived.by(() => {
   if (sick) return sick.name
   return "Ledig"
 })
+// Placing the selected person asks first when an approval is missing, they said
+// "kan ikke" for the shift, or the server warns in red (see confirmationFor).
+const asks = $derived(
+  Boolean(
+    offer &&
+      (offer.needs_confirmation ||
+        offer.warnings.some(note => note.level === "red") ||
+        (selected && answerOf(shift, selected.volunteer_id) === "nei")),
+  ),
+)
+const swapRequested = $derived(
+  Boolean(person && assignment?.swap_requested && !assignment.cannot_attend),
+)
 const detail = $derived.by(() => {
   if (moving) return null
+  if (swapRequested && !offer) return "Ønsker bytte"
   if (sick && offer)
-    return `erstatter ${sick.name}${offer.needs_confirmation ? ", krever bekreftelse" : ""}`
-  if (offer?.needs_confirmation) return "Krever bekreftelse"
+    return `erstatter ${sick.name}${asks ? ", krever bekreftelse" : ""}`
+  if (asks) return "Krever bekreftelse"
   if (sick) return "Kan ikke i dag, trenger erstatter"
   if (open && selected && fit && !fit.ok) return fit.reason
   return null
@@ -160,7 +174,11 @@ function onDrop(event: DragEvent) {
     <span
       class={cn(
         "block text-[0.7rem]",
-        sick && !offer ? "font-heading text-warn-red" : "text-foreground-muted",
+        sick && !offer
+          ? "font-heading text-warn-red"
+          : swapRequested && !offer
+            ? "font-heading text-warn-yellow"
+            : "text-foreground-muted",
       )}
     >
       {detail}
