@@ -561,3 +561,224 @@ test("placing someone who answered kan ikke asks first", async ({ page }) => {
   // Nothing was placed.
   await expect(asking).toContainText("Sett inn Emil")
 })
+
+test("Meld feil on invented data says it is an exercise and sends nothing", async ({
+  page,
+}) => {
+  const sent: string[] = []
+  page.on("request", request => {
+    if (request.url().includes("/personal/")) sent.push(request.url())
+  })
+  await page.getByRole("button", { name: "Meld feil" }).click()
+  const dialog = page.getByRole("dialog", { name: "Meld feil" })
+  await dialog.getByLabel("Hva skjedde?").fill("Test")
+  await dialog.getByRole("button", { name: "Send" }).click()
+  await expect(dialog.getByRole("status")).toContainText("øvelse")
+  expect(sent).toEqual([])
+})
+
+const ledige = async (page: Page) => {
+  const text = await page
+    .getByRole("button", { name: /\d+ ledige/ })
+    .innerText()
+  return Number(text.match(/\d+/)?.[0])
+}
+
+test("Kopier fra forrige uke asks first and then fills only empty places", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Neste uke" }).click()
+  await expect(page.getByRole("heading", { name: "Uke 50" })).toBeVisible()
+  const before = await ledige(page)
+
+  await page.getByRole("button", { name: "Kopier fra forrige uke" }).click()
+  const dialog = page.getByRole("alertdialog")
+  await expect(dialog).toContainText("Bare tomme plasser fylles")
+  await expect(dialog).toContainText("«Angre» gjelder ikke kopiering")
+  // Avbryt changes nothing.
+  await dialog.getByRole("button", { name: "Avbryt" }).click()
+  expect(await ledige(page)).toBe(before)
+
+  await page.getByRole("button", { name: "Kopier fra forrige uke" }).click()
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Kopier" })
+    .click()
+  await expect(status(page)).toContainText("Kopierte")
+  expect(await ledige(page)).toBeLessThan(before)
+  // The copy is not on the undo stack.
+  await expect(page.getByRole("button", { name: /^Angre/ })).toBeDisabled()
+})
+
+test("copying twice changes nothing the second time", async ({ page }) => {
+  await page.getByRole("button", { name: "Neste uke" }).click()
+  await expect(page.getByRole("heading", { name: "Uke 50" })).toBeVisible()
+  for (const round of [1, 2]) {
+    await page.getByRole("button", { name: "Kopier fra forrige uke" }).click()
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Kopier" })
+      .click()
+    await expect(status(page)).toContainText(
+      round === 1 ? "Kopierte" : "Ingen endring",
+    )
+  }
+})
+
+const suggestedPlaces = (page: Page) =>
+  page.locator("[data-slot]").filter({ hasText: /^.*Forslag:/s })
+
+async function openWeek50(page: Page) {
+  await page.getByRole("button", { name: "Neste uke" }).click()
+  await expect(page.getByRole("heading", { name: "Uke 50" })).toBeVisible()
+}
+
+test("pending suggestions are shown as proposals with their reason, and block publishing", async ({
+  page,
+}) => {
+  await openWeek50(page)
+  await expect(suggestedPlaces(page)).toHaveCount(3)
+  await expect(suggestedPlaces(page).first()).toContainText("Valgt fordi")
+  await expect(
+    page.getByRole("button", { name: "Godta forslag (3)" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Forkast forslag" }),
+  ).toBeVisible()
+  // A week with suggestions cannot be published: the button is off and says why.
+  await expect(
+    page.getByRole("button", { name: "Publiser uka" }),
+  ).toBeDisabled()
+  // A week without suggestions has no review buttons.
+  await page.getByRole("button", { name: /^Uke 49,/ }).click()
+  await expect(page.getByRole("button", { name: /Godta forslag/ })).toHaveCount(
+    0,
+  )
+})
+
+test("Godta forslag places the people and removes the suggestions", async ({
+  page,
+}) => {
+  await openWeek50(page)
+  const before = await ledige(page)
+
+  await page.getByRole("button", { name: "Godta forslag (3)" }).click()
+
+  await expect(status(page)).toContainText("Godtok 3 forslag")
+  await expect(suggestedPlaces(page)).toHaveCount(0)
+  await expect(page.getByRole("button", { name: /Godta forslag/ })).toHaveCount(
+    0,
+  )
+  expect(await ledige(page)).toBe(before - 3)
+  await expect(page.getByRole("button", { name: "Publiser uka" })).toBeEnabled()
+})
+
+test("Forkast forslag removes the suggestions and places nobody", async ({
+  page,
+}) => {
+  await openWeek50(page)
+  const before = await ledige(page)
+
+  await page.getByRole("button", { name: "Forkast forslag" }).click()
+
+  await expect(status(page)).toContainText("Forkastet 3 forslag")
+  await expect(suggestedPlaces(page)).toHaveCount(0)
+  expect(await ledige(page)).toBe(before)
+})
+
+test("suggestions have no accessibility violations", async ({ page }) => {
+  await openWeek50(page)
+  await expect(suggestedPlaces(page)).toHaveCount(3)
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze()
+  expect(results.violations.map(v => `${v.id}: ${v.nodes.length}`)).toEqual([])
+})
+
+test("Lag forslag for uka makes suggestions, places nobody, and they can be accepted", async ({
+  page,
+}) => {
+  // Week 49 has no suggestions yet.
+  await expect(suggestedPlaces(page)).toHaveCount(0)
+  const before = await ledige(page)
+
+  await page.getByRole("button", { name: "Lag forslag for uka" }).click()
+
+  await expect(status(page)).toContainText("Laget")
+  const made = await suggestedPlaces(page).count()
+  expect(made).toBeGreaterThan(0)
+  await expect(suggestedPlaces(page).first()).toContainText("Valgt fordi")
+  // Nothing is placed by a suggestion, and the week cannot be published yet.
+  expect(await ledige(page)).toBe(before)
+  await expect(
+    page.getByRole("button", { name: "Publiser uka" }),
+  ).toBeDisabled()
+  // Once there are suggestions the button offers to redo them.
+  await expect(
+    page.getByRole("button", { name: "Lag forslag på nytt" }),
+  ).toBeVisible()
+
+  await page.getByRole("button", { name: `Godta forslag (${made})` }).click()
+  await expect(status(page)).toContainText(`Godtok ${made} forslag`)
+  expect(await ledige(page)).toBe(before - made)
+})
+
+test("Lag forslag på nytt replaces the pending suggestions", async ({
+  page,
+}) => {
+  await openWeek50(page)
+  await expect(suggestedPlaces(page)).toHaveCount(3)
+
+  await page.getByRole("button", { name: "Lag forslag på nytt" }).click()
+
+  await expect(status(page)).toContainText("Laget")
+  // The earlier three are gone; there is one suggestion per empty place that anyone offered for.
+  expect(await suggestedPlaces(page).count()).toBeGreaterThan(0)
+})
+
+const barTab = (page: Page, name: string) =>
+  page.getByRole("navigation", { name: "Barer" }).getByRole("button", { name })
+
+test("the rehearsal data has Stjerne's four bars", async ({ page }) => {
+  for (const name of ["Stjerne", "Grøndahls", "Kjøkken", "Halvtimen"])
+    await expect(barTab(page, name)).toBeVisible()
+})
+
+test("Stjerne's Tuesday evening is the quiz and it has no weekend shifts", async ({
+  page,
+}) => {
+  await expect(
+    place(page, /^Skjenker tirsdag 1\. desember, Quizskift/).first(),
+  ).toBeVisible()
+  await expect(
+    place(page, /^Skjenker mandag 30\. november, Kveldsskift/).first(),
+  ).toBeVisible()
+  // Saturday and Sunday are empty columns, not shifts.
+  await expect(page.getByText("lørdag 5. desember: ingen skift")).toBeAttached()
+})
+
+test("Halvtimen only runs on Friday and Saturday, with bartenders", async ({
+  page,
+}) => {
+  await barTab(page, "Halvtimen").click()
+  await expect(
+    page.getByRole("rowheader", { name: /Åpningsskift/ }),
+  ).toBeVisible()
+  await expect(
+    place(page, /^Bartender fredag 4\. desember, Åpningsskift/).first(),
+  ).toBeVisible()
+  await expect(
+    place(page, /^Bartender lørdag 5\. desember, Åpningsskift/).first(),
+  ).toBeVisible()
+  await expect(place(page, /^\w+ torsdag/)).toHaveCount(0)
+})
+
+test("the kitchen has cooks and no skiftleder, and plus adds a cook", async ({
+  page,
+}) => {
+  await barTab(page, "Kjøkken").click()
+  await expect(place(page, /^Kokk mandag 30\. november/).first()).toBeVisible()
+  await expect(place(page, /^Skiftleder/)).toHaveCount(0)
+  await expect(page.locator("[data-plus]").first()).toContainText("+")
+  await expect(page.getByText("Kokk: 2").first()).toBeVisible()
+})

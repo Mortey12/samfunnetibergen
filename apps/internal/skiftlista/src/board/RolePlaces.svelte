@@ -38,12 +38,16 @@ function plus() {
 }
 </script>
 
-<div class="flex items-center justify-between gap-2 text-xs print:hidden">
-  <span class="text-foreground-muted">
+<!-- In a narrow day column the buttons do not fit beside the label, so the row
+     wraps: the label on one line, the buttons under it. -->
+<div
+  class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs print:hidden"
+>
+  <span class="whitespace-nowrap text-foreground-muted">
     {KIND_LABEL[kind]}: {total}
     <span class="sr-only">plasser</span>
   </span>
-  <span class="flex gap-1">
+  <span class="flex shrink-0 gap-1">
     <button
       type="button"
       data-minus={`${shift.shift_id}-${kind}`}

@@ -55,6 +55,12 @@ export type Op =
       expectB?: number
     }
   | { type: "status"; status: "open" | "published" }
+  /** "Godta forslag" and "Forkast forslag". Not undoable: a suggestion is gone once dealt with. */
+  | { type: "suggestWeek" }
+  | { type: "acceptSuggestions" }
+  | { type: "discardSuggestions" }
+  /** "Kopier fra forrige uke". Not undoable with "Angre": it can place many people. */
+  | { type: "copyWeek" }
   /** "+": one more place of a kind on a shift. Addressed by shift and kind, not by place, so undo survives new ids. */
   | { type: "addPlace"; shiftId: number; kind: PlaceKind }
   /** "−": one empty place of a kind less. The inverse of addPlace. */
@@ -192,6 +198,10 @@ export function inverseOf(
           }
     }
     case "status":
+    case "copyWeek":
+    case "suggestWeek":
+    case "acceptSuggestions":
+    case "discardSuggestions":
       return null
     case "addPlace":
       return { type: "removePlace", shiftId: op.shiftId, kind: op.kind }
@@ -238,6 +248,14 @@ export async function run(
       )
     case "status":
       return api.setStatus(board, op.status)
+    case "copyWeek":
+      return api.copyPreviousWeek(board)
+    case "suggestWeek":
+      return api.suggestWeek(board)
+    case "acceptSuggestions":
+      return api.acceptSuggestions(board)
+    case "discardSuggestions":
+      return api.discardSuggestions(board)
     case "addPlace":
       return api.addPlace(board, op.shiftId, op.kind)
     case "removePlace":

@@ -480,3 +480,221 @@ test("a write that cannot reach Personal says it was not saved", async ({
   await expect(page.getByText("Publisert", { exact: true })).toBeVisible()
   expect(asked.writes).toHaveLength(0)
 })
+
+test("Meld feil sends the text with the bar, the week and the token", async ({
+  page,
+}) => {
+  const asked = await mockPersonal(page, () => ({
+    status: 200,
+    json: { message: "Takk! Feilmeldingen er sendt til etjenesten." },
+  }))
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Meld feil" }).click()
+  const dialog = page.getByRole("dialog", { name: "Meld feil" })
+  // Focus is in the text box and the dialog says not to write names.
+  await expect(dialog.getByLabel("Hva skjedde?")).toBeFocused()
+  await expect(dialog).toContainText("Ikke skriv navn på frivillige")
+  await dialog.getByLabel("Hva skjedde?").fill("Plusknappen gjør ingenting")
+  await dialog.getByRole("button", { name: "Send" }).click()
+
+  await expect(dialog.getByRole("status")).toContainText("sendt til etjenesten")
+  const [sent] = asked.writes
+  expect(sent.method).toBe("POST")
+  expect(sent.path).toBe("/problem-reports")
+  expect(sent.headers["x-csrf-token"]).toBe(ME.csrf_token)
+  expect(sent.headers["if-match"]).toBeUndefined()
+  expect(sent.body).toMatchObject({
+    message: "Plusknappen gjør ingenting",
+    group_id: 7,
+    week_start: "2026-11-02",
+    data_source: "live",
+  })
+  await dialog.getByRole("button", { name: "Lukk" }).click()
+  await expect(dialog).toBeHidden()
+})
+
+test("Meld feil never says thanks when the report was not sent", async ({
+  page,
+}) => {
+  await mockPersonal(page, () => ({
+    status: 503,
+    json: {
+      detail:
+        "Feilmeldingen ble ikke sendt. Si fra til etjenesten på en annen måte.",
+    },
+  }))
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  await page.getByRole("button", { name: "Meld feil" }).click()
+  const dialog = page.getByRole("dialog", { name: "Meld feil" })
+  await dialog.getByLabel("Hva skjedde?").fill("Noe galt")
+  await dialog.getByRole("button", { name: "Send" }).click()
+
+  await expect(dialog.getByRole("alert")).toContainText("ikke sendt")
+  await expect(dialog.getByText("Takk")).toHaveCount(0)
+  // The text is still there to try again.
+  await expect(dialog.getByLabel("Hva skjedde?")).toHaveValue("Noe galt")
+})
+
+test("Meld feil has no accessibility violations", async ({ page }) => {
+  await mockPersonal(page)
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  await page.getByRole("button", { name: "Meld feil" }).click()
+  await expect(page.getByRole("dialog", { name: "Meld feil" })).toBeVisible()
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze()
+  expect(results.violations.map(v => `${v.id}: ${v.nodes.length}`)).toEqual([])
+})
+
+test("an unexpected error is reported to Personal without a stack or the board", async ({
+  page,
+}) => {
+  await mockPersonal(page)
+  const reports: Record<string, string>[] = []
+  await page.route("**/personal/api/v1/telemetry/client-errors/", route => {
+    reports.push(route.request().postDataJSON())
+    return route.fulfill({ json: { ok: true } })
+  })
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+
+  await page.evaluate(() => {
+    setTimeout(() => {
+      throw new TypeError("boom for ola.nordmann@example.dev")
+    })
+  })
+  await expect.poll(() => reports.length).toBe(1)
+  expect(Object.keys(reports[0]).sort()).toEqual([
+    "error_source",
+    "error_text",
+    "error_type",
+  ])
+  expect(reports[0].error_type).toBe("TypeError")
+  expect(reports[0].error_text).not.toContain("example.dev")
+  // The environment is in the source, and there is no query string (bar, week).
+  expect(reports[0].error_source).toMatch(/^skiftlista:[a-z]+:\S+ \/$/)
+})
+
+test("Kopier fra forrige uke sends POST for the bar with the version and shows who was skipped", async ({
+  page,
+}) => {
+  const asked = await mockPersonal(page, () => ({
+    status: 200,
+    json: {
+      message: "Kopierte 3 plasser fra uke 44. 1 ble ikke kopiert.",
+      warnings: [
+        {
+          text: "Halle H.: svarte «kan ikke» for dagskift tirsdag 3.11.",
+          level: "yellow",
+        },
+      ],
+      board: WEEK,
+    },
+  }))
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Kopier fra forrige uke" }).click()
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Kopier" })
+    .click()
+
+  await expect(page.getByRole("status").first()).toContainText(
+    "Kopierte 3 plasser fra uke 44",
+  )
+  await expect(page.getByRole("status").first()).toContainText(
+    "Halle H.: svarte «kan ikke»",
+  )
+  const [sent] = asked.writes
+  expect(sent.method).toBe("POST")
+  expect(sent.path).toBe("/weeks/2026-11-02/copy-previous?group_id=7")
+  expect(sent.headers["x-csrf-token"]).toBe(ME.csrf_token)
+  expect(sent.headers["if-match"]).toBe(WEEK.version)
+})
+
+test("Godta forslag sends POST for the week with the token and the version", async ({
+  page,
+}) => {
+  const withSuggestion = structuredClone(WEEK)
+  const target = withSuggestion.shifts
+    .flatMap((shift: { places: FixturePlace[] }) => shift.places)
+    .find(
+      (place: FixturePlace) => !place.assignment && place.kind === "skjenker",
+    )
+  target.suggestion = {
+    volunteer_id: WEEK.people[0].volunteer_id,
+    why: "Valgt fordi hun vil",
+  }
+  const asked: string[] = []
+  const writes: { path: string; headers: Record<string, string> }[] = []
+  await page.route("**/personal/api/v1/leader/shifts/**", async route => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (url.pathname.endsWith("/me")) return route.fulfill({ json: ME })
+    if (request.method() === "GET") {
+      asked.push(url.pathname)
+      return route.fulfill({
+        json: { ...withSuggestion, week_start: url.pathname.split("/").pop() },
+      })
+    }
+    writes.push({
+      path:
+        url.pathname.replace("/personal/api/v1/leader/shifts", "") + url.search,
+      headers: request.headers(),
+    })
+    return route.fulfill({
+      json: { message: "Godtok 1 forslag.", warnings: [], board: WEEK },
+    })
+  })
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+  await expect(page.getByText("Forslag:").first()).toBeVisible()
+  await expect(page.getByText("Valgt fordi hun vil").first()).toBeVisible()
+
+  await page.getByRole("button", { name: "Godta forslag (1)" }).click()
+  await expect(page.getByRole("status").first()).toContainText(
+    "Godtok 1 forslag",
+  )
+  expect(writes[0].path).toBe("/weeks/2026-11-02/suggestions/accept?group_id=7")
+  expect(writes[0].headers["x-csrf-token"]).toBe(ME.csrf_token)
+  expect(writes[0].headers["if-match"]).toBe(WEEK.version)
+})
+
+test("Lag forslag for uka sends POST for the week with the token and the version", async ({
+  page,
+}) => {
+  const asked = await mockPersonal(page, () => ({
+    status: 200,
+    json: {
+      message: "Laget 4 forslag.",
+      warnings: [
+        {
+          text: "2 plasser fikk ikke noe forslag fordi ingen kunne eller ville.",
+          level: "yellow",
+        },
+      ],
+      board: WEEK,
+    },
+  }))
+  await page.goto("/?api=http&bar=7&uke=2026-11-02")
+  await expect(page.getByRole("heading", { name: "Uke 45" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Lag forslag for uka" }).click()
+
+  await expect(page.getByRole("status").first()).toContainText(
+    "Laget 4 forslag",
+  )
+  await expect(page.getByRole("status").first()).toContainText(
+    "2 plasser fikk ikke noe forslag",
+  )
+  const [sent] = asked.writes
+  expect(sent.method).toBe("POST")
+  expect(sent.path).toBe("/weeks/2026-11-02/suggestions?group_id=7")
+  expect(sent.headers["x-csrf-token"]).toBe(ME.csrf_token)
+  expect(sent.headers["if-match"]).toBe(WEEK.version)
+})

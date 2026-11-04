@@ -2,7 +2,9 @@
 import {
   ChevronLeft,
   ChevronRight,
+  Copy,
   Download,
+  Flag,
   Printer,
   Undo2,
 } from "@lucide/svelte"
@@ -37,6 +39,7 @@ import {
   confirmationFor,
   type Filter,
   firstName,
+  isNeeded,
   isOpen,
   longDate,
   type PlaceRef,
@@ -50,6 +53,7 @@ import {
 import { buttonVariants } from "./lib/button"
 import ConfirmDialog from "./lib/ConfirmDialog.svelte"
 import { cn } from "./lib/cn"
+import ReportDialog from "./lib/ReportDialog.svelte"
 import SectionMark from "./lib/SectionMark.svelte"
 import { selectionControlVariants } from "./lib/selection-control"
 import { Sheet, SheetContent } from "./lib/sheet"
@@ -287,6 +291,14 @@ function labelFor(op: Op, current: WeekBoard): string {
       return "bytte"
     case "status":
       return op.status === "published" ? "publisering" : "åpning"
+    case "copyWeek":
+      return "kopiering"
+    case "suggestWeek":
+      return "forslag"
+    case "acceptSuggestions":
+      return "godtatte forslag"
+    case "discardSuggestions":
+      return "forkastede forslag"
     case "addPlace":
       return "ny plass"
     case "removePlace":
@@ -362,6 +374,10 @@ function targetSlot(op: Op): number | null {
     case "swap":
       return op.slotB
     case "status":
+    case "copyWeek":
+    case "suggestWeek":
+    case "acceptSuggestions":
+    case "discardSuggestions":
     case "addPlace":
     case "removePlace":
       return null
@@ -397,6 +413,34 @@ function cancelPending() {
 function undoLast() {
   const last = currentUndo.at(-1)
   if (last) execute(last.inverse, last.label, last)
+}
+
+let reportOpen = $state(false)
+let confirmCopy = $state(false)
+
+/** True while some place still has to be filled: then suggestions can be made. */
+const needsFilling = $derived(
+  board ? board.shifts.some(shift => shift.places.some(isNeeded)) : false,
+)
+
+/** Pending suggestions on the week shown (never visible to volunteers). */
+const suggestionCount = $derived(
+  board
+    ? board.shifts.reduce(
+        (sum, shift) =>
+          sum + shift.places.filter(place => place.suggestion).length,
+        0,
+      )
+    : 0,
+)
+
+/** "Meld feil": the text, with the bar and week the leader is looking at. */
+function sendReport(message: string): Promise<string> {
+  return api.reportProblem({
+    message,
+    barId: board?.bar.id ?? barId,
+    weekStart: board?.week_start ?? weekStart,
+  })
 }
 
 /** Saves the week shown as a CSV file: nothing is sent anywhere, the browser builds it. */
@@ -766,11 +810,63 @@ function problemTitle(refs: PlaceRef[]): string {
               <Download aria-hidden="true" class="size-4" />
               Last ned CSV
             </button>
-            {#if board.status !== "published"}
+            <button
+              type="button"
+              class={cn(selectionControlVariants(), "gap-2 font-base")}
+              title="Setter forrige ukes folk på de samme plassene. Fyller bare tomme plasser."
+              disabled={busy}
+              onclick={() => (confirmCopy = true)}
+            >
+              <Copy aria-hidden="true" class="size-4" />
+              Kopier fra forrige uke
+            </button>
+            <button
+              type="button"
+              class={cn(selectionControlVariants(), "gap-2 font-base")}
+              title="Si fra om noe som ikke virker"
+              onclick={() => (reportOpen = true)}
+            >
+              <Flag aria-hidden="true" class="size-4" />
+              Meld feil
+            </button>
+            {#if needsFilling}
               <button
                 type="button"
                 class={cn(buttonVariants(), "bg-cta")}
                 disabled={busy}
+                title="Foreslår folk til de tomme plassene ut fra ønskene, reglene og hvem som har hatt færrest skift. Ingenting settes opp før du godtar."
+                onclick={() => doOp({ type: "suggestWeek" })}
+              >
+                {suggestionCount > 0 ? "Lag forslag på nytt" : "Lag forslag for uka"}
+              </button>
+            {/if}
+            {#if suggestionCount > 0}
+              <button
+                type="button"
+                class={cn(buttonVariants(), "bg-secondary text-secondary-foreground")}
+                disabled={busy}
+                title="Setter de foreslåtte folka på plassene, hver gjennom de vanlige reglene"
+                onclick={() => doOp({ type: "acceptSuggestions" })}
+              >
+                Godta forslag ({suggestionCount})
+              </button>
+              <button
+                type="button"
+                class={buttonVariants({ variant: "neutral" })}
+                disabled={busy}
+                onclick={() => doOp({ type: "discardSuggestions" })}
+              >
+                Forkast forslag
+              </button>
+            {/if}
+            {#if board.status !== "published"}
+              <button
+                type="button"
+                class={cn(buttonVariants(), "bg-cta")}
+                disabled={busy || suggestionCount > 0}
+                title={suggestionCount > 0
+                  ? "Godta eller forkast forslagene først"
+                  : undefined}
                 onclick={() => doOp({ type: "status", status: "published" })}
               >
                 Publiser uka
@@ -924,6 +1020,38 @@ function problemTitle(refs: PlaceRef[]): string {
           confirmLabel="Sett inn likevel"
           onConfirm={confirmPending}
           onCancel={cancelPending}
+        />
+        <ConfirmDialog
+          open={confirmCopy}
+          title="Kopiere fra forrige uke?"
+          subject={board
+            ? `Setter forrige ukes folk på de samme plassene i uke ${board.week_number} for ${board.bar.name}. Bare tomme plasser fylles, og ingen blir fjernet. Folk som svarte «kan ikke», eller som reglene ikke tillater, hoppes over og listes opp.`
+            : ""}
+          warnings={[
+            ...(board?.status !== "open"
+              ? [
+                  {
+                    text: "Uka er publisert: frivillige ser endringene med en gang.",
+                    level: "red" as const,
+                  },
+                ]
+              : []),
+            {
+              text: "«Angre» gjelder ikke kopiering. Du kan ta folk av én og én.",
+              level: "yellow" as const,
+            },
+          ]}
+          confirmLabel="Kopier"
+          onConfirm={() => {
+            confirmCopy = false
+            doOp({ type: "copyWeek" })
+          }}
+          onCancel={() => (confirmCopy = false)}
+        />
+        <ReportDialog
+          open={reportOpen}
+          send={sendReport}
+          onClose={() => (reportOpen = false)}
         />
         <footer class="noprint text-xs text-foreground-muted">
           {live

@@ -65,6 +65,13 @@ const sick = $derived(
     ? personById(board, assignment.volunteer_id)
     : undefined,
 )
+// A pending suggestion on an empty place: shown as a proposal, with why it was chosen.
+// It is not a placement; volunteers never see it.
+const suggested = $derived(
+  place.suggestion && !assignment
+    ? personById(board, place.suggestion.volunteer_id)
+    : undefined,
+)
 const label = $derived.by(() => {
   if (moving && moveFrom === place.slot_id) return "Flyttes …"
   if (moving)
@@ -74,6 +81,7 @@ const label = $derived.by(() => {
   // Someone said "kan ikke i dag": the place counts as open, but it shows who
   // had it, so the leader sees at once that a replacement is needed.
   if (sick) return sick.name
+  if (suggested) return `Forslag: ${suggested.name}`
   return "Ledig"
 })
 // Placing the selected person asks first when an approval is missing, they said
@@ -97,6 +105,7 @@ const detail = $derived.by(() => {
   if (asks) return "Krever bekreftelse"
   if (sick) return "Kan ikke i dag, trenger erstatter"
   if (open && selected && fit && !fit.ok) return fit.reason
+  if (suggested && place.suggestion) return place.suggestion.why
   return null
 })
 const warnings = $derived(offer?.warnings ?? problems)
@@ -132,6 +141,10 @@ function onDrop(event: DragEvent) {
       !offer &&
       !moving &&
       "border-2 border-dashed border-warn-red bg-answer-nei/40",
+    suggested &&
+      !offer &&
+      !moving &&
+      "border-2 border-dashed border-primary/70 bg-primary/5",
     selected &&
       person?.volunteer_id === selected.volunteer_id &&
       "outline-3 outline-secondary",
@@ -151,7 +164,7 @@ function onDrop(event: DragEvent) {
   <span
     class={cn(
       "block truncate",
-      person || (sick && !offer && !moving)
+      person || (sick && !offer && !moving) || (suggested && !offer && !moving)
         ? "font-heading"
         : "text-foreground-muted",
       offer && "font-heading text-foreground",

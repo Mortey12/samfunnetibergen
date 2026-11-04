@@ -152,6 +152,9 @@ interface WireWriteResult {
  * Personal refuses with `{ detail }` in Norwegian; that text is shown as is,
  * and the page then reloads the week (see `execute` in App.svelte).
  */
+/** The build label sent with a problem report (set at build time, else "dev"). */
+const APP_VERSION: string = import.meta.env.VITE_APP_VERSION ?? "dev"
+
 export function createHttpApi(fetchFn: typeof fetch = fetch): LeaderApi {
   let csrfToken = ""
 
@@ -270,5 +273,50 @@ export function createHttpApi(fetchFn: typeof fetch = fetch): LeaderApi {
         body: { status },
         week: false,
       }),
+    suggestWeek: board =>
+      write("POST", `/weeks/${board.week_start}/suggestions`, board, {
+        week: false,
+      }),
+    acceptSuggestions: board =>
+      write("POST", `/weeks/${board.week_start}/suggestions/accept`, board, {
+        week: false,
+      }),
+    discardSuggestions: board =>
+      write("POST", `/weeks/${board.week_start}/suggestions/discard`, board, {
+        week: false,
+      }),
+    copyPreviousWeek: board =>
+      write("POST", `/weeks/${board.week_start}/copy-previous`, board, {
+        week: false,
+      }),
+    async reportProblem(report) {
+      const send = () =>
+        fetchFn(`${BASE}/problem-reports`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
+          },
+          body: JSON.stringify({
+            message: report.message,
+            group_id: report.barId,
+            week_start: report.weekStart,
+            app_version: APP_VERSION,
+            data_source: "live",
+          }),
+        })
+      let response = await send()
+      if (response.status === 403) {
+        const sent = csrfToken
+        try {
+          await refreshToken()
+        } catch (error) {
+          if (error instanceof NotSignedInError) throw error
+        }
+        if (csrfToken !== sent) response = await send()
+      }
+      return (await readJson<{ message: string }>(response)).message
+    },
   }
 }

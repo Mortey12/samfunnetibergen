@@ -34,6 +34,20 @@ const days = $derived(weekDays(props.board))
 const kinds = $derived(addableKinds(props.board))
 const activeDays = $derived(new Set(props.board.shifts.map(shift => shift.day)))
 
+// On a phone the grid shows ONE day at a time (the strip above the table picks
+// it); from the `md` breakpoint up all days show, and paper always shows all.
+// The other days are hidden with CSS (`display: none`), so they also leave the
+// tab order and the accessibility tree.
+let picked = $state<string | null>(null)
+const phoneDay = $derived(
+  picked && activeDays.has(picked)
+    ? picked
+    : (days.find(day => activeDays.has(day)) ?? null),
+)
+/** Classes for a column of `day`: hidden on a phone unless it is the chosen day. */
+const phoneColumn = (day: string) =>
+  day === phoneDay ? undefined : "max-md:hidden print:table-cell"
+
 /** "Satt opp" or "Opptatt" in a day header for the selected person. */
 function busyMark(day: string): string | null {
   const selected = props.selected
@@ -59,6 +73,30 @@ function counts(answers: Record<string, string>) {
 }
 </script>
 
+<nav
+  aria-label="Velg dag"
+  class="noprint mb-2 flex gap-1 overflow-x-auto md:hidden"
+>
+  {#each days as day, index (day)}
+    {#if activeDays.has(day)}
+      <button
+        type="button"
+        aria-pressed={day === phoneDay ? "true" : "false"}
+        class={cn(
+          "focus-brutal shrink-0 cursor-pointer rounded-base border border-border px-3 py-1.5 text-left text-sm",
+          day === phoneDay
+            ? "bg-secondary font-heading text-secondary-foreground"
+            : "bg-background",
+        )}
+        onclick={() => (picked = day)}
+      >
+        <span class="block font-heading">{DAY_NAMES[index]}</span>
+        <span class="block text-xs opacity-80">{longDate(day)}</span>
+      </button>
+    {/if}
+  {/each}
+</nav>
+
 <!-- The grid scrolls sideways on narrow screens; keyboard users need a
      focusable region to scroll it. `relative` keeps the screen-reader-only
      text inside the scroll box, so the page itself never scrolls sideways. -->
@@ -68,15 +106,20 @@ function counts(answers: Record<string, string>) {
   class="week-grid relative min-w-0 overflow-x-auto rounded-base border border-border bg-card shadow-shadow"
   tabindex="0"
 >
-  <table class="w-full min-w-[46rem] table-fixed border-collapse text-sm">
+  <table class="w-full table-fixed border-collapse text-sm md:min-w-[46rem]">
     <caption class="sr-only">
       Skift for {props.board.bar.name}, uke {props.board.week_number}. Kolonner er
       dager, rader er skift. Trykk på en dag for å se hvem som vil og kan.
     </caption>
     <colgroup>
-      <col class="w-28" />
+      <col class="w-24 md:w-28" />
       {#each days as day (day)}
-        <col class={activeDays.has(day) ? undefined : "w-10"} />
+        <col
+          class={cn(
+            activeDays.has(day) ? undefined : "w-10",
+            phoneColumn(day),
+          )}
+        />
       {/each}
     </colgroup>
     <thead>
@@ -86,7 +129,10 @@ function counts(answers: Record<string, string>) {
           {@const pressed = props.focusDay === day}
           <th
             scope="col"
-            class="border-b border-l border-border p-0 text-left align-bottom font-base"
+            class={cn(
+              "border-b border-l border-border p-0 text-left align-bottom font-base",
+              phoneColumn(day),
+            )}
           >
             {#if activeDays.has(day)}
               <button
@@ -130,7 +176,7 @@ function counts(answers: Record<string, string>) {
         <tr>
           <th
             scope="row"
-            class="border-t border-border p-2 text-left align-top font-base"
+            class="sticky left-0 z-10 border-t border-border bg-card p-2 text-left align-top font-base"
           >
             <span class="block font-heading">{row.label}</span>
             <span class="block text-xs text-foreground-muted">
@@ -142,6 +188,7 @@ function counts(answers: Record<string, string>) {
             <td
               class={cn(
                 "border-t border-l border-border p-1.5 align-top",
+                phoneColumn(day),
                 !shift && "bg-muted/40",
                 props.focusDay === day && "bg-secondary-50/70",
               )}

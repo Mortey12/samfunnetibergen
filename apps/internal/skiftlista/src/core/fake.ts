@@ -29,6 +29,8 @@ interface ShiftTemplate {
   time: [string, string]
   kinds: PlaceKind[]
   weekdays: number[]
+  /** A weekday with its own name and time on the same row (Stjerne's Tuesday quiz). */
+  variants?: Record<number, { title: string; time: [string, string] }>
 }
 
 interface BarSeed {
@@ -77,6 +79,8 @@ const BARS: BarSeed[] = [
         time: ["16:30", "22:00"],
         kinds: ["skiftleder", "skjenker", "skjenker"],
         weekdays: [0, 1, 2, 3, 4],
+        // On Tuesdays the evening shift is the quiz, longer and with the same crew.
+        variants: { 1: { title: "Quizskift", time: ["16:30", "23:00"] } },
       },
     ],
   },
@@ -105,6 +109,55 @@ const BARS: BarSeed[] = [
         time: ["19:30", "01:30"],
         kinds: ["skiftleder", "skjenker", "skjenker"],
         weekdays: [0, 1, 2, 3, 4, 5],
+      },
+    ],
+  },
+  {
+    // The kitchen: cooks, no skiftleder. Monday to Friday.
+    id: 13,
+    name: "Kjøkken",
+    people: [
+      "Hilde A.",
+      "Tobias F.",
+      "Maren D.",
+      "Oskar L.",
+      "Linn P.",
+      "Fredrik G.",
+      "Astrid V.",
+    ],
+    skiftledere: [],
+    answered: 6,
+    templates: [
+      {
+        title: "Kjøkken",
+        time: ["14:00", "20:00"],
+        kinds: ["kokk", "kokk"],
+        weekdays: [0, 1, 2, 3, 4],
+      },
+    ],
+  },
+  {
+    // The cocktail bar: Friday and Saturday only, late, with bartenders.
+    id: 14,
+    name: "Halvtimen",
+    people: [
+      "Amalie R.",
+      "Benjamin T.",
+      "Cecilie W.",
+      "Daniel Y.",
+      "Emilie Z.",
+      "Filip O.",
+      "Guro N.",
+      "Harald Q.",
+    ],
+    skiftledere: ["Amalie R.", "Daniel Y."],
+    answered: 7,
+    templates: [
+      {
+        title: "Åpningsskift",
+        time: ["20:30", "03:30"],
+        kinds: ["skiftleder", "bartender", "bartender"],
+        weekdays: [4, 5],
       },
     ],
   },
@@ -153,6 +206,8 @@ interface StoredPlace {
   slot_id: number
   kind: PlaceKind
   assignment: Omit<Assignment, "problems"> | null
+  /** A pending suggestion (never a placement). */
+  suggestion?: { volunteer_id: number; why: string } | null
 }
 
 interface StoredShift {
@@ -233,8 +288,8 @@ export function createStore(): Store {
             bar_id: bar.id,
             day,
             position: index + 1,
-            title: template.title,
-            time: template.time,
+            title: template.variants?.[weekday]?.title ?? template.title,
+            time: template.variants?.[weekday]?.time ?? template.time,
             places: template.kinds.map(kind => ({
               slot_id: slotId++,
               kind,
@@ -329,6 +384,40 @@ function seedPlacements(store: Store) {
     place => place.assignment && place.kind === "skjenker",
   )
   if (sick?.assignment) sick.assignment.cannot_attend = true
+  seedSuggestions(store)
+}
+
+/** Three pending suggestions in week 50 of Stjerne, so the review buttons can be tried. */
+function seedSuggestions(store: Store) {
+  const days = new Set([0, 1, 2, 3, 4].map(n => addDays(FIRST_WEEK, 7 + n)))
+  let made = 0
+  for (const shift of store.shifts) {
+    if (made >= 3) break
+    if (shift.bar_id !== 11 || !days.has(shift.day)) continue
+    const place = shift.places.find(
+      p => p.kind === "skjenker" && p.assignment === null && !p.suggestion,
+    )
+    if (!place) continue
+    const taken = new Set(
+      shift.places.flatMap(p =>
+        p.assignment ? [p.assignment.volunteer_id] : [],
+      ),
+    )
+    const pick = store.people.find(
+      person =>
+        person.bar_id === 11 &&
+        !person.is_skiftleder &&
+        !taken.has(person.volunteer_id) &&
+        store.answers.get(answerKey(shift.shift_id, person.volunteer_id)) ===
+          "vil",
+    )
+    if (!pick) continue
+    place.suggestion = {
+      volunteer_id: pick.volunteer_id,
+      why: "Valgt fordi han vil, og har få skift",
+    }
+    made += 1
+  }
 }
 
 function newAssignment(
@@ -492,7 +581,7 @@ export function buildBoard(
             ),
           }
         : null,
-      suggestion: null,
+      suggestion: place.assignment ? null : (place.suggestion ?? null),
     }))
     return {
       shift_id: shift.shift_id,
@@ -858,6 +947,15 @@ export function createFakeApi(
     async setStatus(board, status) {
       await wait()
       requireFresh(store, board)
+      if (
+        status === "published" &&
+        weekShifts(store, board.bar.id, board.week_start).some(shift =>
+          shift.places.some(place => place.suggestion),
+        )
+      )
+        throw new RefusedError(
+          "Uka har forslag som ikke er godtatt eller forkastet. Godta eller forkast dem før du publiserer.",
+        )
       store.status.set(weekKey(board.bar.id, board.week_start), status)
       store.changed.delete(weekKey(board.bar.id, board.week_start))
       const key = weekKey(board.bar.id, board.week_start)
@@ -868,6 +966,182 @@ export function createFakeApi(
           ? `Uke ${board.week_number} er publisert. Folk ser skiftene sine i appen nå.`
           : `Uke ${board.week_number} er åpen for ønsker igjen.`,
       )
+    },
+    async suggestWeek(board) {
+      await wait()
+      requireFresh(store, board)
+      const shifts = weekShifts(store, board.bar.id, board.week_start)
+      for (const shift of shifts)
+        for (const place of shift.places) place.suggestion = null
+      // A simple stand-in for the server's engine: the person who offered ("vil"
+      // before "kan") and has the fewest shifts this week, never two on a day.
+      const load = new Map<number, number>()
+      const days = new Map<string, Set<number>>()
+      const note = (volunteerId: number, day: string) => {
+        load.set(volunteerId, (load.get(volunteerId) ?? 0) + 1)
+        days.set(day, (days.get(day) ?? new Set()).add(volunteerId))
+      }
+      for (const shift of shifts)
+        for (const place of shift.places)
+          if (place.assignment && !place.assignment.cannot_attend)
+            note(place.assignment.volunteer_id, shift.day)
+      let made = 0
+      for (const shift of shifts) {
+        for (const place of shift.places) {
+          if (place.assignment || place.kind === "opplaering") continue
+          const best = store.people
+            .filter(candidate => {
+              const answer = store.answers.get(
+                answerKey(shift.shift_id, candidate.volunteer_id),
+              )
+              return (
+                candidate.bar_id === board.bar.id &&
+                (answer === "vil" || answer === "kan") &&
+                (place.kind !== "skiftleder" || candidate.is_skiftleder) &&
+                !days.get(shift.day)?.has(candidate.volunteer_id)
+              )
+            })
+            .sort(
+              (a, b) =>
+                (load.get(a.volunteer_id) ?? 0) -
+                  (load.get(b.volunteer_id) ?? 0) ||
+                a.volunteer_id - b.volunteer_id,
+            )[0]
+          if (!best) continue
+          const answer = store.answers.get(
+            answerKey(shift.shift_id, best.volunteer_id),
+          )
+          place.suggestion = {
+            volunteer_id: best.volunteer_id,
+            why: `Valgt fordi ${best.name.split(" ")[0]} ${answer === "vil" ? "vil" : "kan"} jobbe dette skiftet.`,
+          }
+          note(best.volunteer_id, shift.day)
+          made += 1
+        }
+      }
+      const key = weekKey(board.bar.id, board.week_start)
+      store.version.set(key, (store.version.get(key) ?? 0) + 1)
+      return result(
+        board,
+        made ? `Laget ${made} forslag.` : "Ingen endring. Fant ingen forslag.",
+      )
+    },
+    async acceptSuggestions(board) {
+      await wait()
+      requireFresh(store, board)
+      let placed = 0
+      const skipped: string[] = []
+      for (const shift of weekShifts(store, board.bar.id, board.week_start)) {
+        for (const place of shift.places) {
+          const pending = place.suggestion
+          if (!pending) continue
+          place.suggestion = null
+          const who = person(store, pending.volunteer_id)
+          const onShift = shift.places.some(
+            p => p.assignment?.volunteer_id === who.volunteer_id,
+          )
+          if (place.assignment && !place.assignment.cannot_attend) {
+            skipped.push(`${who.name}: plassen er tatt.`)
+          } else if (onShift) {
+            skipped.push(`${who.name}: står allerede på dette skiftet.`)
+          } else if (place.kind === "skiftleder" && !who.is_skiftleder) {
+            skipped.push(`${who.name}: bare godkjente skiftledere.`)
+          } else {
+            place.assignment = newAssignment(store, who.volunteer_id)
+            placed += 1
+          }
+        }
+      }
+      touch(store, board)
+      const text = placed
+        ? `Godtok ${placed} forslag.`
+        : "Ingen endring. Ingen forslag kunne godtas."
+      return result(
+        board,
+        skipped.length ? `${text} ${skipped.length} ble ikke godtatt.` : text,
+        skipped.map(text => ({ text, level: "yellow" as const })),
+      )
+    },
+    async discardSuggestions(board) {
+      await wait()
+      requireFresh(store, board)
+      let count = 0
+      for (const shift of weekShifts(store, board.bar.id, board.week_start))
+        for (const place of shift.places)
+          if (place.suggestion) {
+            place.suggestion = null
+            count += 1
+          }
+      const key = weekKey(board.bar.id, board.week_start)
+      store.version.set(key, (store.version.get(key) ?? 0) + 1)
+      return result(
+        board,
+        count
+          ? `Forkastet ${count} forslag.`
+          : "Ingen endring. Det er ingen forslag å forkaste.",
+      )
+    },
+    async copyPreviousWeek(board) {
+      await wait()
+      requireFresh(store, board)
+      const days = new Set(
+        [0, 1, 2, 3, 4, 5, 6].map(n => addDays(board.week_start, n)),
+      )
+      let placed = 0
+      const skipped: string[] = []
+      for (const shift of store.shifts) {
+        if (shift.bar_id !== board.bar.id || !days.has(shift.day)) continue
+        const old = store.shifts.find(
+          candidate =>
+            candidate.bar_id === shift.bar_id &&
+            candidate.position === shift.position &&
+            candidate.day === addDays(shift.day, -7),
+        )
+        if (!old) continue
+        const onShift = new Set(
+          shift.places.flatMap(p =>
+            p.assignment ? [p.assignment.volunteer_id] : [],
+          ),
+        )
+        for (const oldPlace of old.places) {
+          const was = oldPlace.assignment
+          if (!was || was.cannot_attend || oldPlace.kind === "opplaering")
+            continue
+          const who = person(store, was.volunteer_id)
+          if (
+            store.answers.get(answerKey(shift.shift_id, who.volunteer_id)) ===
+            "nei"
+          ) {
+            skipped.push(
+              `${who.name}: svarte «kan ikke» for ${shift.title.toLowerCase()} ${shift.day}.`,
+            )
+            continue
+          }
+          if (onShift.has(who.volunteer_id)) continue
+          const empty = shift.places.find(
+            p => p.kind === oldPlace.kind && p.assignment === null,
+          )
+          if (!empty) continue
+          empty.assignment = newAssignment(store, who.volunteer_id)
+          onShift.add(who.volunteer_id)
+          placed += 1
+        }
+      }
+      touch(store, board)
+      const week = Number(board.week_number) - 1
+      const text =
+        placed === 0
+          ? `Ingen endring. Ingen ble kopiert fra uke ${week}.`
+          : `Kopierte ${placed} plasser fra uke ${week}.`
+      return result(
+        board,
+        skipped.length ? `${text} ${skipped.length} ble ikke kopiert.` : text,
+        skipped.map(text => ({ text, level: "yellow" as const })),
+      )
+    },
+    async reportProblem() {
+      await wait()
+      return "Takk! Dette er en øvelse med oppdiktede data, så meldingen er ikke sendt."
     },
   }
 }

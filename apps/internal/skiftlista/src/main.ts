@@ -5,6 +5,7 @@ import { mount } from "svelte"
 import App from "./App.svelte"
 import { createFakeApi, mondayOf } from "./core/fake"
 import { createHttpApi } from "./core/http"
+import { createReporter, installErrorReporting } from "./core/report"
 
 const target = document.getElementById("root")
 if (!target) throw new Error("Missing #root")
@@ -18,6 +19,16 @@ const requested = import.meta.env.DEV
 const mode = requested ?? import.meta.env.VITE_LEADER_API ?? "fake"
 
 if (mode === "http") {
+  // Unexpected errors go to Personal (see core/report.ts). Only with live data.
+  installErrorReporting(
+    createReporter({
+      enabled: true,
+      environment: import.meta.env.VITE_APP_ENV ?? import.meta.env.MODE,
+      version: import.meta.env.VITE_APP_VERSION ?? "dev",
+      path: () => window.location.pathname,
+    }),
+    window,
+  )
   // Today in Oslo, as yyyy-mm-dd.
   const today = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Oslo",

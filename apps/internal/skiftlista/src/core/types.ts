@@ -209,4 +209,38 @@ export interface LeaderApi {
     board: WeekBoard,
     status: "open" | "published",
   ): Promise<WriteResult>
+  /**
+   * POST /weeks/{week_start}/suggestions ("Lag forslag for uka"): suggestions
+   * for the empty places from the wishes, the rules and fairness over the
+   * semester. Replaces the pending ones. Nobody is placed, volunteers see
+   * nothing; the leader accepts or discards.
+   */
+  suggestWeek(board: WeekBoard): Promise<WriteResult>
+  /**
+   * POST /weeks/{week_start}/suggestions/accept: the pending suggestions
+   * become placements, each through the normal rules; what a rule refuses is
+   * skipped and returned as `warnings`. All or nothing.
+   */
+  acceptSuggestions(board: WeekBoard): Promise<WriteResult>
+  /** POST /weeks/{week_start}/suggestions/discard: throw them away; nobody is placed. */
+  discardSuggestions(board: WeekBoard): Promise<WriteResult>
+  /**
+   * POST /weeks/{week_start}/copy-previous: last week's people on the same
+   * places, EMPTY places only, all or nothing. Skipped people (answered "kan
+   * ikke", left the group, refused by a rule) come back as `warnings`.
+   */
+  copyPreviousWeek(board: WeekBoard): Promise<WriteResult>
+  /**
+   * POST /problem-reports ("Meld feil"). The text is the leader's own; the
+   * server adds who sent it, the bar and week, and the environment. Resolves
+   * with the thank-you text, rejects with the server's reason (for example
+   * that reports are not set up) so the leader never thinks it was sent.
+   */
+  reportProblem(report: ProblemReport): Promise<string>
+}
+
+export interface ProblemReport {
+  message: string
+  barId: number | null
+  weekStart: string | null
 }
