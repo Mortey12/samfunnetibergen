@@ -12,11 +12,6 @@ const personal = {
 
 export default defineConfig({
   plugins: [tailwindcss(), svelte()],
-  // SPIKE=1 also builds the throwaway spike.html (used for the hosting test
-  // only; the normal build is just the app).
-  build: process.env.SPIKE
-    ? { rollupOptions: { input: ["index.html", "spike.html"] } }
-    : {},
   server: {
     proxy: {
       // /personal/x in the browser becomes http://localhost:8000/x (the
