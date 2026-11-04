@@ -1,3 +1,8 @@
+> **Old standalone demo guide.** It describes the first Render and Vercel demo,
+> with its own forks and project. The current guide is
+> `docs/how-to/skiftlista-leader-app.md`. The git steps below predate the move to
+> `apps/internal/skiftlista` and the shared Vercel setup, so read them as history.
+
 # Full guide: show the leader app on Render and Vercel
 
 Fake data only. Nothing here touches Kvarteret's real systems or repositories.
