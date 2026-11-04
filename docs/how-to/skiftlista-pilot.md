@@ -34,7 +34,7 @@ opplæring som egne skjermer for ledere.
 
 ## Før start
 
-Gjøres av etjenesten og Morten. Ingenting av dette er gjort ennå.
+Gjøres av e-tjenesten og utvikleren av Skiftlista. Ingenting av dette er gjort ennå.
 
 1. **Sikkerhetskopi av databasen** før de syv nye migreringene kjøres.
    Migreringene er prøvd på en tom Postgres, ikke på en database med data.
@@ -64,26 +64,26 @@ Gjøres av etjenesten og Morten. Ingenting av dette er gjort ennå.
 6. **«Meld feil» virker** bare når Personal har `LINEAR_API_KEY` og
    `LINEAR_TEAM_ID`. Prøv den én gang før start. Uten nøkkel står det
    «Feilmeldingen ble ikke sendt», og ingenting blir meldt.
-7. **Etjenestens gjennomgang** av sikkerhetsfunn E (noen gruppe- og
+7. **E-tjenestens gjennomgang** av sikkerhetsfunn E (noen gruppe- og
    verv-handlinger i Personal sjekker rollen, men ikke gruppa), og svar fra
    personvernansvarlig. Se «Åpne spørsmål».
 
 ## Prøvekjøring før uke 1
 
-To trinn, i denne rekkefølgen. Morten har valgt dette.
+To trinn, i denne rekkefølgen. Utvikleren har valgt dette.
 
-**Trinn A: øvelse med oppdiktede data.** Et lite møte der Morten og et par
-ledere prøver appen sammen. Det brukes øvingsserveren med fakedata på Mortens
+**Trinn A: øvelse med oppdiktede data.** Et lite møte der utvikleren og et par
+ledere prøver appen sammen. Det brukes øvingsserveren med fakedata på utviklerens
 egne kontoer (Render og Vercel), så ingen ekte skift eller personer berøres.
 Bruk lederguiden [skiftlista-leder-guide.md](skiftlista-leder-guide.md) og
 testlisten `apps/internal/skiftlista/TESTING.md`. Øvingsserveren kjører en
 eldre utgave; avgjør før møtet om den skal oppdateres med rettelsene fra
 denne økta (for eksempel pluss og minus på smale skjermer).
 
-**Trinn B: Kjøkken med ekte data.** Morten er medlem i Kjøkken og prøver
+**Trinn B: Kjøkken med ekte data.** Utvikleren er medlem i Kjøkken og prøver
 appen der selv. Dette er en prøve av piloten og krever det samme som piloten:
-sikkerhetskopi og migreringer gjort av etjenesten, demo-innloggingen av,
-Gruppeadmin-konto for Morten på Kjøkken, bryteren for Kjøkken på, og
+sikkerhetskopi og migreringer gjort av e-tjenesten, demo-innloggingen av,
+Gruppeadmin-konto for utvikleren på Kjøkken, bryteren for Kjøkken på, og
 `pilot_readiness.py --bars Kjøkken` uten MISSING (Kjøkken vurderes på Kokk, ikke
 Skiftleder). Regler under prøven:
 
@@ -109,7 +109,7 @@ ingenting skal bare finnes i appen i starten.
 ## Hva vi måler
 
 Anbefaling fra Claude, ikke avtalt. Fire tall, alle lette å få tak i, og
-Morten samler dem:
+Utvikleren samler dem:
 
 - **Uker planlagt og publisert i appen** (mål: alle ukene i måneden), og hvor
   mange plasser som sto ledige da uka ble publisert. Står i den ukentlige CSV-en.
@@ -125,15 +125,15 @@ trenger ikke måles for å avgjøre piloten.
 ## Slik melder du feil
 
 **Leder:** trykk «Meld feil» i verktøylinja, skriv hva som skjedde og hva du
-ventet. Ikke skriv navn på frivillige. Meldingen blir en sak hos etjenesten,
+ventet. Ikke skriv navn på frivillige. Meldingen blir en sak hos e-tjenesten,
 merket med bar, uke og versjon. Står det «ikke sendt» i stedet for «Takk», kom
-den ikke fram: skriv i den åpne Slack-kanalen for piloten, der etjenesten og
-Morten følger med. Kanalen finnes ikke ennå og må opprettes.
+den ikke fram: skriv i den åpne Slack-kanalen for piloten, der e-tjenesten og
+utvikleren følger med. Kanalen finnes ikke ennå og må opprettes.
 
 **Uventede feil** i nettleseren sendes automatisk til Personal uten navn,
 uten stack og uten hva som står i uka.
 
-**Etjenesten:** ser sakene i Linear (triage). Meldinger fra øvingsserveren er
+**E-tjenesten:** ser sakene i Linear (triage). Meldinger fra øvingsserveren er
 merket `fake` eller `development` i tittelen.
 
 ## Ukerutine
@@ -149,7 +149,7 @@ Leder, hver uke:
    «Publiser uka» igjen når du er ferdig.
 6. Last ned CSV til Excel-kopien (så lenge den gjelder).
 
-Etjenesten, hver uke: se på nye «Meld feil»-saker, og kjør
+E-tjenesten, hver uke: se på nye «Meld feil»-saker, og kjør
 klargjøringsrapporten før en ny bar slås på.
 
 ## Når appen ikke virker
@@ -163,7 +163,7 @@ klargjøringsrapporten før en ny bar slås på.
    Sjekk at den fortsatt finnes i den utgaven av Personal som kjører før
    piloten starter.
 3. **Excel-arket** har siste ukentlige kopi hvis begge deler er nede.
-4. Meld fra til etjenesten, og skriv ned hva som ikke ble gjort, så det kan
+4. Meld fra til e-tjenesten, og skriv ned hva som ikke ble gjort, så det kan
    føres inn etterpå.
 
 ## Gjøre en uke til utkast (ta den bort fra de frivillige)
@@ -187,14 +187,14 @@ oppdateres over luften (OTA) med arbeidsflyten «OTA update» fra `development`.
   bryteren er av, må sjekkes før piloten.
 - **Rull tilbake en OTA-oppdatering:** publiser forrige gode oppdatering på
   nytt i EAS (nettsiden eller kommandoen `eas update:republish`). Ikke prøvd
-  ennå; etjenesten bør øve på det én gang før piloten.
+  ennå; e-tjenesten bør øve på det én gang før piloten.
 - Nye native avhengigheter krever en butikkutgivelse, og det har ikke
   Skiftlista-skjermene. Hvilken byggeversjon som ligger i butikkene nå er
   ikke bekreftet.
 
 ## Hvem bestemmer å stoppe
 
-Leder for etjenesten, Morten og leder for Stjerne kan stoppe piloten
+Leder for e-tjenesten, utvikleren og leder for Stjerne kan stoppe piloten
 umiddelbart. Forslag til når:
 
 - Data er feil eller forsvunnet for de frivillige.
@@ -211,27 +211,27 @@ måler», svarene fra lederne, og en liste over det som ble løst med
 reserveløsningen eller Excel. Nye barer og nye funksjoner (varsler,
 påminnelser, kurs) vurderes først etter en «behold» eller «endre».
 
-## Besvart av Morten (2026-11-04)
+## Besvart av utvikleren (2026-11-04)
 
 1. **Hvem:** hele Stjerne, 20–30 frivillige.
 2. **Hvilken Personal:** ja, ekte data. Ønskene må komme fra mobilappen
-   Morten har laget, så piloten kjører mot den ekte Personal, med bare Stjerne
+   utvikleren har laget, så piloten kjører mot den ekte Personal, med bare Stjerne
    slått på.
-3. **Når «Meld feil» ikke virker:** etjenesten og Morten, via en åpen
+3. **Når «Meld feil» ikke virker:** e-tjenesten og utvikleren, via en åpen
    Slack-kanal.
-4. **Hvem kan stoppe:** leder for etjenesten, Morten og leder for Stjerne.
+4. **Hvem kan stoppe:** leder for e-tjenesten, utvikleren og leder for Stjerne.
 6. **Personvern:** piloten er så sent i året at utgangspunktet er at alle som
    har hatt opplæringsskift regnes som godkjent for det, og for skiftleder
    spør man leder for Stjerne. (Claude: jeg leser det slik at leder for Stjerne
    gjennomgår listen over skiftledere fra kopieringsskriptet før start. Dette
    er ikke et svar fra personvernansvarlig.)
-8. **Fast adresse og Vercel-prosjekt:** Martin gjør det.
+8. **Fast adresse og Vercel-prosjekt:** Leder for e-tjenesten gjør det.
 
 ## Åpne spørsmål
 
-5. **Hva vi måler:** anbefalingen står under «Hva vi måler». Morten bekrefter.
+5. **Hva vi måler:** anbefalingen står under «Hva vi måler». Utvikleren bekrefter.
 7. **Sikkerhetsfunn E** (rett gruppe-sjekk i Personals gruppe- og verv-ruter),
-   og funn A og C: avgjøres sammen med etjenesten.
+   og funn A og C: avgjøres sammen med e-tjenesten.
 9. **Mobilen:** hvilken byggeversjon som ligger i butikkene, og om
    mobilappen skjuler Skiftlista-skjermene når bryteren for baren er av. Dette
    blir viktigere nå som 20–30 frivillige skal bruke den: uten de nye

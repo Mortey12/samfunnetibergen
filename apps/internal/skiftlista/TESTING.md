@@ -4,7 +4,7 @@ This guide shows you, step by step, how to check that the new Skiftlista leader 
 
 It takes about 30 minutes. The page uses invented people, nothing you do is saved, and you cannot break anything.
 
-A version of this guide with pictures of what each step should look like, tick boxes and a "Copy my results" button is shared as a page by Morten. This file has the same steps as text.
+A version of this guide with pictures of what each step should look like, tick boxes and a "Copy my results" button is shared as a page by the developer. This file has the same steps as text.
 
 ## Words you will see
 
@@ -47,7 +47,7 @@ Do this:
 You should see:
 
 - Nothing much happens, but the line now ends with samfunnetibergen$.
-- If it says "No such file or directory", the project is somewhere else on this computer. Ask Morten.
+- If it says "No such file or directory", the project is somewhere else on this computer. Ask the developer.
 
 - [ ] It matched
 
