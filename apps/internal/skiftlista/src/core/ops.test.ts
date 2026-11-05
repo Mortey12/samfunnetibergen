@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { createFakeApi, createStore, FIRST_WEEK } from "./fake"
+import { addDays, createFakeApi, createStore, FIRST_WEEK } from "./fake"
 import {
   inverseOf,
   occupant,
@@ -308,5 +308,47 @@ describe("undo is safe", () => {
     const op = { type: "status" as const, status: "published" as const }
     const result = await run(api, board, op)
     expect(inverseOf(op, board, result.board)).toBeNull()
+  })
+})
+
+describe("undoing a copy", () => {
+  async function copied() {
+    const api = createFakeApi(createStore(), 0)
+    const before = await api.week(STJERNE, addDays(FIRST_WEEK, 7))
+    const result = await run(api, before, { type: "copyWeek" })
+    return { api, before, after: result.board }
+  }
+
+  it("takes everyone who was copied off again, in one step", async () => {
+    const { api, before, after } = await copied()
+    const inverse = inverseOf({ type: "copyWeek" }, before, after)
+    expect(inverse?.type).toBe("removeMany")
+    if (!inverse) return
+    const undone = await run(api, after, inverse)
+    const placedNow = (board: WeekBoard) =>
+      board.shifts.flatMap(shift =>
+        shift.places.filter(place => place.assignment).map(p => p.slot_id),
+      )
+    expect(placedNow(undone.board)).toEqual(placedNow(before))
+  })
+
+  it("has nothing to undo when the copy changed nothing", async () => {
+    const { before, after } = await copied()
+    expect(inverseOf({ type: "copyWeek" }, after, after)).toBeNull()
+    expect(before).not.toBe(after)
+  })
+
+  it("leaves a person alone who has been moved since", async () => {
+    const { api, before, after } = await copied()
+    const inverse = inverseOf({ type: "copyWeek" }, before, after)
+    if (inverse?.type !== "removeMany") throw new Error("expected removeMany")
+    const first = inverse.items[0]
+    const gone = await run(api, after, {
+      type: "remove",
+      slotId: first.slotId,
+      expect: first.expect,
+    })
+    const undone = await run(api, gone.board, inverse)
+    expect(undone.message).toContain(String(inverse.items.length - 1))
   })
 })

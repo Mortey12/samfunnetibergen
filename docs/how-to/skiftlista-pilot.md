@@ -100,7 +100,8 @@ Det nåværende arket (H26) holdes ved like som skrivebeskyttet kopi, og
 ingenting skal bare finnes i appen i starten.
 
 - **Hver uke** (forslag: fredag, når uka etter er publisert): lederen trykker
-  «Last ned CSV» for uka på skjermen og limer den inn i arkfanen «Arkiv».
+  «Last ned CSV» for uka på skjermen (eller «Last ned flere uker» for flere
+  på en gang) og limer den inn i arkfanen «Arkiv».
   Filen bygges i nettleseren og sendes ingen steder.
 - Gjør det for hver bar som er med.
 - Etter 2–3 uker uten problemer avgjør de som styrer piloten om Excel kan

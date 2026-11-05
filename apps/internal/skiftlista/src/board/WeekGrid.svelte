@@ -70,6 +70,47 @@ function nameList(names: string[]): string {
     : `${names.slice(0, 4).join(", ")} +${names.length - 4}`
 }
 
+// Arrow keys move between places while one has focus: up and down inside a
+// day, left and right to the same spot in the next day with places. Tab still
+// works as before; this only adds a shortcut that does nothing anywhere else.
+function onArrow(event: KeyboardEvent) {
+  const arrows = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
+  if (!arrows.includes(event.key)) return
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+  const current =
+    event.target instanceof Element
+      ? event.target.closest<HTMLElement>("button[data-slot]")
+      : null
+  const cell = current?.closest("td")
+  const row = cell?.parentElement
+  if (!current || !cell || !row) return
+  const visible = (el: Element) => (el as HTMLElement).offsetParent !== null
+  const placesIn = (td: Element) =>
+    [...td.querySelectorAll<HTMLElement>("button[data-slot]")].filter(visible)
+  const column = [...row.children].indexOf(cell)
+  let target: HTMLElement | undefined
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    // Every place in this day, top to bottom across the shifts.
+    const rows = [...(row.parentElement?.children ?? [])]
+    const all = rows.flatMap(r => placesIn(r.children[column]))
+    const at = all.indexOf(current)
+    target = all[at + (event.key === "ArrowDown" ? 1 : -1)]
+  } else {
+    const step = event.key === "ArrowRight" ? 1 : -1
+    const spot = placesIn(cell).indexOf(current)
+    for (let c = column + step; c > 0 && c < row.children.length; c += step) {
+      const there = placesIn(row.children[c])
+      if (there.length) {
+        target = there[Math.min(spot, there.length - 1)]
+        break
+      }
+    }
+  }
+  if (!target) return
+  event.preventDefault()
+  target.focus()
+}
+
 function counts(answers: Record<string, string>) {
   let vil = 0
   let kan = 0
@@ -108,11 +149,12 @@ function counts(answers: Record<string, string>) {
 <!-- The grid scrolls sideways on narrow screens; keyboard users need a
      focusable region to scroll it. `relative` keeps the screen-reader-only
      text inside the scroll box, so the page itself never scrolls sideways. -->
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 <section
   aria-label={`Ukeplan, ${props.board.bar.name}`}
   class="week-grid relative min-w-0 overflow-x-auto rounded-base border border-border bg-card shadow-shadow"
   tabindex="0"
+  onkeydown={onArrow}
 >
   <table class="w-full table-fixed border-collapse text-sm md:min-w-[46rem]">
     <caption class="sr-only">

@@ -13,7 +13,12 @@ import Chip from "./board/Chip.svelte"
 import PeoplePanel from "./board/PeoplePanel.svelte"
 import PlacePanel from "./board/PlacePanel.svelte"
 import WeekGrid from "./board/WeekGrid.svelte"
-import { csvFileName, weekToCsv } from "./core/export"
+import {
+  csvFileName,
+  csvRangeFileName,
+  weeksToCsv,
+  weekToCsv,
+} from "./core/export"
 import { addDays, FIRST_WEEK } from "./core/fake"
 import { NotSignedInError } from "./core/http"
 import {
@@ -52,6 +57,7 @@ import {
 } from "./core/view"
 import { buttonVariants } from "./lib/button"
 import ConfirmDialog from "./lib/ConfirmDialog.svelte"
+import CsvRangeDialog from "./lib/CsvRangeDialog.svelte"
 import { cn } from "./lib/cn"
 import ReportDialog from "./lib/ReportDialog.svelte"
 import SectionMark from "./lib/SectionMark.svelte"
@@ -303,6 +309,8 @@ function labelFor(op: Op, current: WeekBoard): string {
       return "ny plass"
     case "removePlace":
       return "plass fjernet"
+    case "removeMany":
+      return "tilbakestilling"
   }
 }
 
@@ -380,6 +388,7 @@ function targetSlot(op: Op): number | null {
     case "discardSuggestions":
     case "addPlace":
     case "removePlace":
+    case "removeMany":
       return null
   }
 }
@@ -450,6 +459,41 @@ function downloadCsv() {
   const link = document.createElement("a")
   link.href = URL.createObjectURL(file)
   link.download = csvFileName(board)
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
+
+let csvRangeOpen = $state(false)
+
+/** How many weeks "Last ned flere uker" can ask for from the week on screen. */
+const maxCsvWeeks = $derived.by(() => {
+  if (!board || !limitWeeks) return 12
+  const days =
+    (Date.parse(lastWeek) - Date.parse(board.week_start)) / 86_400_000
+  return Math.max(1, Math.round(days / 7) + 1)
+})
+
+/** Reads `count` weeks from the one on screen and saves them as one CSV file. */
+async function downloadCsvRange(count: number) {
+  const current = board
+  if (!current) return
+  const boards: WeekBoard[] = [current]
+  for (let n = 1; n < count; n++) {
+    const next = addDays(current.week_start, 7 * n)
+    try {
+      boards.push(await api.week(current.bar.id, next))
+    } catch {
+      throw new Error(
+        `Kunne ikke hente uka som starter ${longDate(next)}. Ingen fil ble laget.`,
+      )
+    }
+  }
+  const file = new Blob([weeksToCsv(boards)], {
+    type: "text/csv;charset=utf-8",
+  })
+  const link = document.createElement("a")
+  link.href = URL.createObjectURL(file)
+  link.download = csvRangeFileName(boards)
   link.click()
   URL.revokeObjectURL(link.href)
 }
@@ -810,6 +854,17 @@ function problemTitle(refs: PlaceRef[]): string {
               <Download aria-hidden="true" class="size-4" />
               Last ned CSV
             </button>
+            {#if maxCsvWeeks > 1}
+              <button
+                type="button"
+                class={cn(selectionControlVariants(), "gap-2 font-base")}
+                title="Flere uker i én fil, fra uka du ser på"
+                onclick={() => (csvRangeOpen = true)}
+              >
+                <Download aria-hidden="true" class="size-4" />
+                Last ned flere uker
+              </button>
+            {/if}
             <button
               type="button"
               class={cn(selectionControlVariants(), "gap-2 font-base")}
@@ -1037,7 +1092,7 @@ function problemTitle(refs: PlaceRef[]): string {
                 ]
               : []),
             {
-              text: "«Angre» gjelder ikke kopiering. Du kan ta folk av én og én.",
+              text: "«Angre» tar alle som ble kopiert av igjen, bortsett fra de du har flyttet siden.",
               level: "yellow" as const,
             },
           ]}
@@ -1048,6 +1103,13 @@ function problemTitle(refs: PlaceRef[]): string {
           }}
           onCancel={() => (confirmCopy = false)}
         />
+        <CsvRangeDialog
+          open={csvRangeOpen}
+          fromWeek={board.week_number}
+          maxWeeks={maxCsvWeeks}
+          download={downloadCsvRange}
+          onClose={() => (csvRangeOpen = false)}
+        />
         <ReportDialog
           open={reportOpen}
           send={sendReport}
@@ -1057,8 +1119,8 @@ function problemTitle(refs: PlaceRef[]): string {
           {live
             ? "Leser fra og lagrer i Personal. Alt du endrer lagres med en gang."
             : "Prototype med oppdiktede data. Ingenting lagres."}
-          Tastatur: Tab mellom
-          plasser, Enter velger, Escape går ett steg tilbake, Ctrl+Z angrer.
+          Tastatur: Tab eller piltaster
+          mellom plasser, Enter velger, Escape går ett steg tilbake, Ctrl+Z angrer.
           {selected ? `Valgt: ${firstName(selected.name)}.` : ""}
         </footer>
       </div>

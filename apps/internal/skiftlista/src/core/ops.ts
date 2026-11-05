@@ -59,8 +59,14 @@ export type Op =
   | { type: "suggestWeek" }
   | { type: "acceptSuggestions" }
   | { type: "discardSuggestions" }
-  /** "Kopier fra forrige uke". Not undoable with "Angre": it can place many people. */
+  /** "Kopier fra forrige uke". Undone with one `removeMany` for everyone it placed. */
   | { type: "copyWeek" }
+  /**
+   * Takes several people off their places, one write each. Each one is only
+   * removed while they still sit where they were put, so a person a leader
+   * has moved since is left alone. Only used to undo copy and accept.
+   */
+  | { type: "removeMany"; items: { slotId: number; expect: number }[] }
   /** "+": one more place of a kind on a shift. Addressed by shift and kind, not by place, so undo survives new ids. */
   | { type: "addPlace"; shiftId: number; kind: PlaceKind }
   /** "−": one empty place of a kind less. The inverse of addPlace. */
@@ -197,11 +203,16 @@ export function inverseOf(
             expectB: a,
           }
     }
-    case "status":
     case "copyWeek":
+    case "acceptSuggestions": {
+      // Everyone who sits on a place now that was empty before.
+      const items = newlyPlaced(before, after)
+      return items.length ? { type: "removeMany", items } : null
+    }
+    case "status":
     case "suggestWeek":
-    case "acceptSuggestions":
     case "discardSuggestions":
+    case "removeMany":
       return null
     case "addPlace":
       return { type: "removePlace", shiftId: op.shiftId, kind: op.kind }
@@ -248,6 +259,8 @@ export async function run(
       )
     case "status":
       return api.setStatus(board, op.status)
+    case "removeMany":
+      return removeMany(api, board, op.items)
     case "copyWeek":
       return api.copyPreviousWeek(board)
     case "suggestWeek":
@@ -260,6 +273,45 @@ export async function run(
       return api.addPlace(board, op.shiftId, op.kind)
     case "removePlace":
       return api.removePlace(board, emptyPlaceOf(board, op.shiftId, op.kind))
+  }
+}
+
+/** People on a place in `after` whose place had nobody in `before`. */
+export function newlyPlaced(
+  before: WeekBoard,
+  after: WeekBoard,
+): { slotId: number; expect: number }[] {
+  const items: { slotId: number; expect: number }[] = []
+  for (const shift of after.shifts)
+    for (const place of shift.places) {
+      const now = occupant(after, place.slot_id)
+      if (now !== null && occupant(before, place.slot_id) === null)
+        items.push({ slotId: place.slot_id, expect: now })
+    }
+  return items
+}
+
+async function removeMany(
+  api: LeaderApi,
+  board: WeekBoard,
+  items: { slotId: number; expect: number }[],
+): Promise<WriteResult> {
+  let current = board
+  let removed = 0
+  for (const item of items) {
+    // Skip anyone a leader has moved or removed since.
+    if (occupant(current, item.slotId) !== item.expect) continue
+    const result = await api.remove(current, assignmentAt(current, item.slotId))
+    current = result.board
+    removed++
+  }
+  return {
+    message:
+      removed === 1
+        ? "1 person er tatt av igjen."
+        : `${removed} personer er tatt av igjen.`,
+    warnings: [],
+    board: current,
   }
 }
 

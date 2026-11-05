@@ -47,8 +47,10 @@ plassene (samme dag, skift og rolle). Den spør først. Bare **tomme** plasser
 fylles, og ingen blir fjernet eller byttet ut. Folk som har svart «kan ikke»,
 som ikke er med i gruppa lenger, eller som reglene ikke tillater (for eksempel
 mangler godkjenning), hoppes over og listes opp i meldingen, slik at du kan ta
-dem selv. Kopieringen er alt eller ingenting, og **«Angre» gjelder ikke
-kopiering**: ta folk av én og én hvis det ble feil.
+dem selv. Kopieringen er alt eller ingenting. Ble det feil, trykk **Angre**
+(eller Ctrl+Z): da tas alle som ble kopiert av igjen, bortsett fra de du har
+flyttet siden. Under hvert skift står det hvem som har sagt «vil» og «kan», og
+med piltastene flytter du mellom plassene.
 
 **På mobil** vises én dag om gangen. Velg dag i stripen over tabellen. Du kan
 bytte dag midt i «Flytt eller bytt» og flytte noen til en annen dag.

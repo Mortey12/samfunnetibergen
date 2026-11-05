@@ -594,7 +594,9 @@ test("Kopier fra forrige uke asks first and then fills only empty places", async
   await page.getByRole("button", { name: "Kopier fra forrige uke" }).click()
   const dialog = page.getByRole("alertdialog")
   await expect(dialog).toContainText("Bare tomme plasser fylles")
-  await expect(dialog).toContainText("«Angre» gjelder ikke kopiering")
+  await expect(dialog).toContainText(
+    "«Angre» tar alle som ble kopiert av igjen",
+  )
   // Avbryt changes nothing.
   await dialog.getByRole("button", { name: "Avbryt" }).click()
   expect(await ledige(page)).toBe(before)
@@ -605,8 +607,12 @@ test("Kopier fra forrige uke asks first and then fills only empty places", async
     .getByRole("button", { name: "Kopier" })
     .click()
   await expect(status(page)).toContainText("Kopierte")
-  expect(await ledige(page)).toBeLessThan(before)
-  // The copy is not on the undo stack.
+  const after = await ledige(page)
+  expect(after).toBeLessThan(before)
+  // One "Angre" takes everyone who was copied off again.
+  await page.getByRole("button", { name: "Angre kopiering" }).click()
+  await expect(status(page)).toContainText("personer er tatt av igjen")
+  expect(await ledige(page)).toBe(before)
   await expect(page.getByRole("button", { name: /^Angre/ })).toBeDisabled()
 })
 
@@ -813,4 +819,53 @@ test("print: names stay, counts and buttons go, colours are plain", async ({
   expect(await rowHeader.evaluate(el => getComputedStyle(el).position)).toBe(
     "static",
   )
+})
+
+test("Last ned flere uker saves several weeks in one file", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Last ned flere uker" }).click()
+  const dialog = page.getByRole("dialog", { name: "Last ned flere uker" })
+  await dialog.getByLabel("Antall uker").selectOption("2")
+  const download = page.waitForEvent("download")
+  await dialog.getByRole("button", { name: "Last ned" }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe("skiftliste-stjerne-uke-49-til-50.csv")
+  const { readFileSync } = await import("node:fs")
+  const text = readFileSync(await file.path(), "utf8")
+  const lines = text.trimEnd().split("\r\n")
+  // One header only, and rows from both weeks.
+  expect(lines.filter(line => line.startsWith("\ufeffDato;")).length).toBe(1)
+  const weeks = new Set(lines.slice(1).map(line => line.split(";")[2]))
+  expect([...weeks].sort()).toEqual(["49", "50"])
+  await expect(dialog).toBeHidden()
+})
+
+test("arrow keys move between places", async ({ page }) => {
+  const first = page.locator("[data-slot]").first()
+  await first.focus()
+  const slotOf = () =>
+    page.evaluate(() =>
+      (document.activeElement as HTMLElement)?.getAttribute("data-slot"),
+    )
+  const start = await slotOf()
+  // Up from the first place of a day stays put.
+  await page.keyboard.press("ArrowUp")
+  expect(await slotOf()).toBe(start)
+  await page.keyboard.press("ArrowDown")
+  const below = await slotOf()
+  expect(below).not.toBe(start)
+  await page.keyboard.press("ArrowUp")
+  expect(await slotOf()).toBe(start)
+  // Right goes to a place in another day column.
+  const column = () =>
+    page.evaluate(() => {
+      const cell = document.activeElement?.closest("td")
+      return cell ? [...(cell.parentElement?.children ?? [])].indexOf(cell) : -1
+    })
+  const before = await column()
+  await page.keyboard.press("ArrowRight")
+  expect(await column()).toBeGreaterThan(before)
+  await page.keyboard.press("ArrowLeft")
+  expect(await column()).toBe(before)
 })

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { csvFileName, weekToCsv, weekToRows } from "./export"
-import { buildBoard, createStore, FIRST_WEEK } from "./fake"
+import {
+  csvFileName,
+  csvRangeFileName,
+  weeksToCsv,
+  weekToCsv,
+  weekToRows,
+} from "./export"
+import { addDays, buildBoard, createStore, FIRST_WEEK } from "./fake"
 import type { WeekBoard } from "./types"
 import { allPlaces, KIND_LABEL } from "./view"
 
@@ -109,5 +115,25 @@ describe("file name", () => {
     copy.bar.name = "Grøndahls Å/Æ"
     copy.week_number = 49
     expect(csvFileName(copy)).toBe("skiftliste-grondahls-a-ae-uke-49.csv")
+  })
+})
+
+describe("several weeks", () => {
+  const first = buildBoard(createStore(), 11, FIRST_WEEK)
+  const second = buildBoard(createStore(), 11, addDays(FIRST_WEEK, 7))
+
+  it("has one header and the rows of every week in order", () => {
+    const lines = weeksToCsv([first, second]).trimEnd().split("\r\n")
+    expect(lines.filter(line => line.includes("Dato;Ukedag"))).toHaveLength(1)
+    expect(lines.length - 1).toBe(
+      weekToRows(first).length + weekToRows(second).length,
+    )
+  })
+
+  it("names a range, and a single week as before", () => {
+    expect(csvRangeFileName([first, second])).toBe(
+      `skiftliste-stjerne-uke-${first.week_number}-til-${second.week_number}.csv`,
+    )
+    expect(csvRangeFileName([first])).toBe(csvFileName(first))
   })
 })

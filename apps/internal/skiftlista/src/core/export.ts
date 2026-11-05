@@ -82,7 +82,13 @@ export function weekToRows(board: WeekBoard): string[][] {
 
 /** The whole file: BOM, header, rows, with ";" between cells and CRLF between lines. */
 export function weekToCsv(board: WeekBoard): string {
-  const lines = [[...CSV_HEADER], ...weekToRows(board)].map(row =>
+  return weeksToCsv([board])
+}
+
+/** Several weeks of one bar in one file: one header, then each week's rows in order. */
+export function weeksToCsv(boards: WeekBoard[]): string {
+  const rows = boards.flatMap(weekToRows)
+  const lines = [[...CSV_HEADER], ...rows].map(row =>
     row.map(cell => quote(safe(cell))).join(SEPARATOR),
   )
   return `${BOM}${lines.join("\r\n")}\r\n`
@@ -98,4 +104,15 @@ export function csvFileName(board: WeekBoard): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
   return `skiftliste-${bar || "bar"}-uke-${board.week_number}.csv`
+}
+
+/** "skiftliste-stjerne-uke-49-til-52.csv" for a range, the single-week name for one week. */
+export function csvRangeFileName(boards: WeekBoard[]): string {
+  const first = boards[0]
+  const last = boards.at(-1)
+  if (!first || !last || first === last) return csvFileName(first)
+  return csvFileName(first).replace(
+    `uke-${first.week_number}.csv`,
+    `uke-${first.week_number}-til-${last.week_number}.csv`,
+  )
 }
