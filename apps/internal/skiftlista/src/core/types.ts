@@ -92,11 +92,14 @@ export interface Shift {
 }
 
 /** Training is kept on the person (not on a kind of place) and counted from finished shifts. */
-export type TrainingQualification = "skjenker" | "kokk" | "skiftleder"
+/** A qualification type's key ("skjenker", "kokk", "skiftleder", or one added in Personal). */
+export type TrainingQualification = string
 export type TrainingAction = "start" | "approve" | "extend" | "stop"
 
 export interface PersonTraining {
   qualification: TrainingQualification
+  /** The name leaders read, from the qualification type. */
+  label?: string
   /** "normal" for skjenker or kokk, "skiftleder" for skiftleder training. */
   kind: "normal" | "skiftleder"
   done: number
@@ -107,6 +110,14 @@ export interface PersonTraining {
   text: string
   /** Required courses the person has not completed; approving can register them. */
   courses_pending?: string[]
+}
+
+/** A qualification a leader can put someone in training for, in this bar. Kept in Personal. */
+export interface TrainingType {
+  key: TrainingQualification
+  label: string
+  /** "skiftleder" needs an experienced skiftleder on the shift. */
+  style: "normal" | "skiftleder"
 }
 
 export interface Person {
@@ -166,6 +177,8 @@ export interface WeekBoard {
   /** volunteer id -> slot id -> fit. Only open places are listed. */
   fit: Record<string, Record<string, Fit>>
   strip: WeekStripItem[]
+  /** What a leader can put someone in training for in this bar. */
+  training_types?: TrainingType[]
   /** Set when another leader changed the week after this copy was read. */
   last_changed: { by: string; at: string } | null
 }

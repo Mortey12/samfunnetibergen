@@ -979,3 +979,41 @@ test("the course can be left alone when approving", async ({ page }) => {
   await expect(status(page)).toContainText("er godkjent som")
   await expect(status(page)).not.toContainText("Kurs registrert")
 })
+
+test("what a person can be put in training for comes from the list the bar sends", async ({
+  page,
+}) => {
+  await person(page, "Emil T.").click()
+  const box = page.locator("[data-training-box]")
+  // Stjerne: skjenker, skiftleder and an extra type added in Personal ("vertskap"), no kokk.
+  await expect(
+    box.getByRole("button", { name: "Sett i opplæring som skjenker" }),
+  ).toBeVisible()
+  await expect(
+    box.getByRole("button", { name: "Sett i opplæring som vertskap" }),
+  ).toBeVisible()
+  await expect(
+    box.getByRole("button", { name: "Sett i opplæring som kokk" }),
+  ).toHaveCount(0)
+  await box
+    .getByRole("button", { name: "Sett i opplæring som vertskap" })
+    .click()
+  await expect(status(page)).toContainText("satt i opplæring som vertskap")
+  await expect(box).toContainText("vertskap: 0 av 3")
+  // Once in it, that choice is gone from the list.
+  await expect(
+    box.getByRole("button", { name: "Sett i opplæring som vertskap" }),
+  ).toHaveCount(0)
+})
+
+test("the kitchen offers kokk and not skjenker", async ({ page }) => {
+  await barTab(page, "Kjøkken").click()
+  await person(page, "Hilde A.").click()
+  const box = page.locator("[data-training-box]")
+  await expect(
+    box.getByRole("button", { name: "Sett i opplæring som kokk" }),
+  ).toBeVisible()
+  await expect(
+    box.getByRole("button", { name: "Sett i opplæring som skjenker" }),
+  ).toHaveCount(0)
+})

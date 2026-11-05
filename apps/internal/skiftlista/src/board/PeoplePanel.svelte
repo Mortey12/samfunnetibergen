@@ -9,7 +9,6 @@ import type {
 } from "../core/types"
 import {
   ANSWER_WORD,
-  addableKinds,
   dayAnswer,
   dayLabel,
   FILTERS,
@@ -55,21 +54,17 @@ let {
 
 const people = $derived(filterPeople(board, query, filter, focusDay))
 
-// The bar's normal training is for skjenker, or kokk in the kitchen.
-const normalQualification = $derived<TrainingQualification>(
-  addableKinds(board)[0] === "kokk" ? "kokk" : "skjenker",
-)
+// What a leader can train people for in this bar is sent by Personal (and a named editor can add
+// more there without code). Only the ones the selected person is not already in.
+const trainingTypes = $derived(board.training_types ?? [])
+const labelOf = (key: string, fallback?: string) =>
+  fallback ?? trainingTypes.find(type => type.key === key)?.label ?? key
 // People who have finished their training shifts and wait for a leader.
 const waiting = $derived(
   board.people.filter(person => person.training?.some(item => item.ready)),
 )
 // Approving also registers the required courses, unless the leader unticks it.
 let registerCourses = $state(true)
-const QUALIFICATION_WORD: Record<TrainingQualification, string> = {
-  skjenker: "skjenker",
-  kokk: "kokk",
-  skiftleder: "skiftleder",
-}
 
 function meta(person: Person): string {
   const parts: string[] = []
@@ -177,7 +172,7 @@ function meta(person: Person): string {
       <h3 class="font-heading">Opplæring</h3>
       {#each selected.training ?? [] as item (item.qualification)}
         <p>
-          {QUALIFICATION_WORD[item.qualification]}: {item.done} av {item.required}
+          {labelOf(item.qualification, item.label)}: {item.done} av {item.required}
           skift.
           {#if item.ready}
             <strong>Ferdig med skiftene.</strong>
@@ -209,7 +204,7 @@ function meta(person: Person): string {
                   registerCourses,
                 )}
             >
-              Godkjenn som {QUALIFICATION_WORD[item.qualification]}
+              Godkjenn som {labelOf(item.qualification, item.label)}
             </button>
             <button
               type="button"
@@ -237,29 +232,16 @@ function meta(person: Person): string {
         <p class="text-foreground-muted">Ikke i opplæring.</p>
       {/each}
       <div class="flex flex-wrap gap-2">
-        {#if !(selected.training ?? []).some(item => item.qualification === normalQualification)}
+        {#each trainingTypes.filter(type => !(selected.training ?? []).some(item => item.qualification === type.key) && !(type.style === "skiftleder" && selected.is_skiftleder)) as type (type.key)}
           <button
             type="button"
             class={buttonVariants({ size: "sm", variant: "neutral" })}
             aria-disabled={busy ? "true" : undefined}
-            onclick={() =>
-              !busy &&
-              onTraining("start", selected.volunteer_id, normalQualification)}
+            onclick={() => !busy && onTraining("start", selected.volunteer_id, type.key)}
           >
-            Sett i opplæring som {QUALIFICATION_WORD[normalQualification]}
+            Sett i opplæring som {type.label}
           </button>
-        {/if}
-        {#if !selected.is_skiftleder && !(selected.training ?? []).some(item => item.qualification === "skiftleder")}
-          <button
-            type="button"
-            class={buttonVariants({ size: "sm", variant: "neutral" })}
-            aria-disabled={busy ? "true" : undefined}
-            onclick={() =>
-              !busy && onTraining("start", selected.volunteer_id, "skiftleder")}
-          >
-            Sett i opplæring som skiftleder
-          </button>
-        {/if}
+        {/each}
       </div>
     </section>
   {/if}

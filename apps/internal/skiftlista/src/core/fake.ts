@@ -22,6 +22,7 @@ import {
   type Shift,
   type TrainingAction,
   type TrainingQualification,
+  type TrainingType,
   type WeekBoard,
   type WeekStatus,
   type WriteResult,
@@ -585,13 +586,33 @@ function placeTraining(store: Store, volunteerId: number): string | null {
     : null
 }
 
+/**
+ * What a leader can train people for, per bar. In Personal these are rows a named editor can add
+ * to without code; here Stjerne also has an invented "vert" so the buttons can be seen to follow
+ * the list.
+ */
+function trainingTypesFor(barId: number): TrainingType[] {
+  const kitchen = barId === 13
+  return [
+    ...(kitchen
+      ? [{ key: "kokk", label: "kokk", style: "normal" as const }]
+      : [{ key: "skjenker", label: "skjenker", style: "normal" as const }]),
+    { key: "skiftleder", label: "skiftleder", style: "skiftleder" as const },
+    ...(barId === 11
+      ? [{ key: "vert", label: "vertskap", style: "normal" as const }]
+      : []),
+  ]
+}
+
 /** The course of a qualification: approving a finished training registers this one only. */
 function courseOf(qualification: TrainingQualification): string {
   return qualification === "kokk"
     ? "Kokkekurs"
     : qualification === "skiftleder"
       ? "Skiftlederkurs"
-      : "Skjenkekurs"
+      : qualification === "vert"
+        ? "Vertskurs"
+        : "Skjenkekurs"
 }
 
 function trainingOf(store: Store, volunteerId: number): PersonTraining[] {
@@ -599,6 +620,7 @@ function trainingOf(store: Store, volunteerId: number): PersonTraining[] {
     .filter(item => item.volunteer_id === volunteerId)
     .map(item => ({
       qualification: item.qualification,
+      label: item.qualification === "vert" ? "vertskap" : item.qualification,
       kind: item.qualification === "skiftleder" ? "skiftleder" : "normal",
       done: item.done,
       required: item.required,
@@ -739,6 +761,7 @@ export function buildBoard(
     shifts: boardShifts,
     people,
     fit,
+    training_types: trainingTypesFor(barId),
     strip: Array.from({ length: WEEK_COUNT }, (_, index) => {
       const start = addDays(FIRST_WEEK, index * 7)
       return {
@@ -1185,7 +1208,11 @@ export function createFakeApi(
         touch(store, board)
         return result(
           board,
-          `${who.name} er satt i opplæring som ${qualification}.`,
+          `${who.name} er satt i opplæring som ${
+            trainingTypesFor(board.bar.id).find(
+              type => type.key === qualification,
+            )?.label ?? qualification
+          }.`,
         )
       }
       if (!item) throw new RefusedError("Personen er ikke i opplæring her.")
