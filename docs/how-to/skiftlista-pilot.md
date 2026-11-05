@@ -65,8 +65,9 @@ Gjøres av e-tjenesten og utvikleren av Skiftlista. Ingenting av dette er gjort 
    `LINEAR_TEAM_ID`. Prøv den én gang før start. Uten nøkkel står det
    «Feilmeldingen ble ikke sendt», og ingenting blir meldt.
 7. **E-tjenestens gjennomgang** av sikkerhetsfunn E (noen gruppe- og
-   verv-handlinger i Personal sjekker rollen, men ikke gruppa), og svar fra
-   personvernansvarlig. Se «Åpne spørsmål».
+   verv-handlinger i Personal sjekker rollen, men ikke gruppa). Personvern er
+   avgjort av utvikleren (kvalifikasjoner lagres for alltid, ledere ser sine
+   egne frivillige), se «Åpne spørsmål».
 
 ## Prøvekjøring før uke 1
 
@@ -226,8 +227,15 @@ påminnelser, kurs) vurderes først etter en «behold» eller «endre».
    spør man leder for Stjerne. (Claude: jeg leser det slik at leder for Stjerne
    gjennomgår listen over skiftledere fra kopieringsskriptet før start. Dette
    er ikke et svar fra personvernansvarlig.)
-   Kvalifikasjoner lagres for alltid, også for folk som har sluttet
-   (svar fra utvikleren, 2026-11-05).
+   Vedtatt: kvalifikasjoner lagres for alltid, også for folk som har sluttet.
+   Ingen andre trenger å svare på det (utvikleren, 2026-11-05).
+   Ledere ser sine egne frivillige (svar fra utvikleren, 2026-11-05). I koden
+   er det lederens egen bar pluss de andre barene under Skjenkegruppen som har
+   bryteren på, så andre barer kan låne folk. Mens bare Stjerne er med i
+   piloten, ser Stjerne-lederen bare Stjernes folk. En Admin ser alle barer som
+   er med. Utvikleren har en Admin-konto, så
+   utviklerens egen innlogging trenger ingen ny konto. Lederne for Stjerne
+   trenger fortsatt hver sin Gruppeadmin-konto.
 8. **Fast adresse og Vercel-prosjekt:** Leder for e-tjenesten gjør det.
 
 ## Åpne spørsmål
