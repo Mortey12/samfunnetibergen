@@ -84,6 +84,9 @@ function onArrow(event: KeyboardEvent) {
   const cell = current?.closest("td")
   const row = cell?.parentElement
   if (!current || !cell || !row) return
+  // The arrow keys belong to the grid while a place has focus: at the edge they do
+  // nothing, they must not scroll the page or the grid instead.
+  event.preventDefault()
   const visible = (el: Element) => (el as HTMLElement).offsetParent !== null
   const placesIn = (td: Element) =>
     [...td.querySelectorAll<HTMLElement>("button[data-slot]")].filter(visible)
@@ -106,9 +109,7 @@ function onArrow(event: KeyboardEvent) {
       }
     }
   }
-  if (!target) return
-  event.preventDefault()
-  target.focus()
+  target?.focus()
 }
 
 function counts(answers: Record<string, string>) {

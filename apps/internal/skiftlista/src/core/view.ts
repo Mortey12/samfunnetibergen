@@ -106,6 +106,19 @@ export function trainingText(training: string | null): string | null {
   return training ? training.charAt(0).toUpperCase() + training.slice(1) : null
 }
 
+/** ISO week number of a date, "2026-12-01" -> 49. Used for labels that name weeks ahead. */
+export function isoWeekOf(iso: string): number {
+  const date = new Date(`${iso}T12:00:00Z`)
+  const day = (date.getUTCDay() + 6) % 7
+  date.setUTCDate(date.getUTCDate() - day + 3) // the Thursday of this week
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4))
+  const offset = (firstThursday.getUTCDay() + 6) % 7
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - offset + 3)
+  return (
+    1 + Math.round((date.getTime() - firstThursday.getTime()) / 604_800_000)
+  )
+}
+
 export function firstName(name: string): string {
   return name.split(" ")[0]
 }

@@ -869,3 +869,113 @@ test("arrow keys move between places", async ({ page }) => {
   await page.keyboard.press("ArrowLeft")
   expect(await column()).toBe(before)
 })
+
+test("arrow keys on a place never scroll the page or the grid", async ({
+  page,
+}) => {
+  const first = page.locator("[data-slot]").first()
+  await first.focus()
+  const scroll = () =>
+    page.evaluate(() => ({
+      page: [window.scrollX, window.scrollY],
+      grid: [
+        document.querySelector(".week-grid")?.scrollLeft,
+        document.querySelector(".week-grid")?.scrollTop,
+      ],
+    }))
+  const before = await scroll()
+  // Up at the first place and left at the first column: nowhere to go.
+  await page.keyboard.press("ArrowUp")
+  await page.keyboard.press("ArrowLeft")
+  expect(await scroll()).toEqual(before)
+})
+
+test("the several-weeks dialog names the weeks it will save", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Last ned flere uker" }).click()
+  const dialog = page.getByRole("dialog", { name: "Last ned flere uker" })
+  await expect(dialog).toContainText("uke 49")
+  await expect(
+    dialog.getByRole("option", { name: "2 uker: uke 49 til 50" }),
+  ).toBeAttached()
+})
+
+test("training is kept on the person: the list says who is in training and the callout says who is done", async ({
+  page,
+}) => {
+  // One person half way (opplæring 1/3) and one finished (3/3), both from the server's tags.
+  await expect(page.locator("#people-panel")).toContainText("opplæring 1/3")
+  await expect(page.locator("#people-panel")).toContainText("opplæring 3/3")
+  await expect(page.locator("[data-training-waiting]")).toContainText(
+    "Ferdig med opplæringen",
+  )
+})
+
+test("a leader approves a trainee who has finished, and the callout goes away", async ({
+  page,
+}) => {
+  const waiting = page.locator("[data-training-waiting]")
+  await expect(waiting).toBeVisible()
+  const name = (await waiting.innerText())
+    .replace("Ferdig med opplæringen:", "")
+    .split(".")[0]
+    .trim()
+  await person(page, name).click()
+  const box = page.locator("[data-training-box]")
+  await expect(box).toContainText("3 av 3")
+  // The required course is registered together with the approval unless unticked.
+  await expect(box.getByLabel(/Registrer kurset «Skjenkekurs»/)).toBeChecked()
+  await box.getByRole("button", { name: /^Godkjenn som/ }).click()
+  await expect(status(page)).toContainText("er godkjent som")
+  await expect(status(page)).toContainText("Kurs registrert som fullført")
+  await expect(page.locator("[data-training-waiting]")).toHaveCount(0)
+})
+
+test("one more shift sets a finished trainee back to not ready", async ({
+  page,
+}) => {
+  const waiting = page.locator("[data-training-waiting]")
+  const name = (await waiting.innerText())
+    .replace("Ferdig med opplæringen:", "")
+    .split(".")[0]
+    .trim()
+  await person(page, name).click()
+  await page
+    .locator("[data-training-box]")
+    .getByRole("button", { name: "Ett skift til" })
+    .click()
+  await expect(status(page)).toContainText("fikk ett skift til")
+  await expect(page.locator("[data-training-box]")).toContainText("3 av 4")
+  await expect(page.locator("[data-training-waiting]")).toHaveCount(0)
+})
+
+test("someone is put in training and taken out again, and Ctrl+Z undoes it", async ({
+  page,
+}) => {
+  await person(page, "Emil T.").click()
+  const box = page.locator("[data-training-box]")
+  await expect(box).toContainText("Ikke i opplæring")
+  await box
+    .getByRole("button", { name: /^Sett i opplæring som skjenker/ })
+    .click()
+  await expect(status(page)).toContainText("er satt i opplæring")
+  await expect(box).toContainText("0 av 3")
+  await page.keyboard.press("Control+z")
+  await expect(status(page)).toContainText("er tatt ut av opplæringen")
+  await expect(box).toContainText("Ikke i opplæring")
+})
+
+test("the course can be left alone when approving", async ({ page }) => {
+  const waiting = page.locator("[data-training-waiting]")
+  const name = (await waiting.innerText())
+    .replace("Ferdig med opplæringen:", "")
+    .split(".")[0]
+    .trim()
+  await person(page, name).click()
+  const box = page.locator("[data-training-box]")
+  await box.getByLabel(/Registrer kurset/).uncheck()
+  await box.getByRole("button", { name: /^Godkjenn som/ }).click()
+  await expect(status(page)).toContainText("er godkjent som")
+  await expect(status(page)).not.toContainText("Kurs registrert")
+})

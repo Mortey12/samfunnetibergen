@@ -9,6 +9,7 @@ import {
   filterPeople,
   fold,
   hoursText,
+  isoWeekOf,
   matches,
   summarize,
   trainingText,
@@ -277,5 +278,14 @@ describe("wishes by name", () => {
   it("starts the training text with a capital letter", () => {
     expect(trainingText("opplæring 2/3")).toBe("Opplæring 2/3")
     expect(trainingText(null)).toBeNull()
+  })
+})
+
+describe("isoWeekOf", () => {
+  it("numbers weeks the way the week buttons do", () => {
+    expect(isoWeekOf("2026-11-30")).toBe(49)
+    expect(isoWeekOf("2026-12-07")).toBe(50)
+    expect(isoWeekOf("2026-12-28")).toBe(53)
+    expect(isoWeekOf("2027-01-04")).toBe(1)
   })
 })

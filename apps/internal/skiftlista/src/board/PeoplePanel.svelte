@@ -1,9 +1,15 @@
 <!-- "Folk denne uka": search, filters and the people in the leader's pool. -->
 <script lang="ts">
 import { setDrag } from "../core/drag"
-import type { Person, WeekBoard } from "../core/types"
+import type {
+  Person,
+  TrainingAction,
+  TrainingQualification,
+  WeekBoard,
+} from "../core/types"
 import {
   ANSWER_WORD,
+  addableKinds,
   dayAnswer,
   dayLabel,
   FILTERS,
@@ -24,6 +30,14 @@ interface Props {
   onFilter: (filter: Filter) => void
   onSelect: (person: Person | null) => void
   onClearDay: () => void
+  /** Training kept on the person: start, approve, one more shift, stop. */
+  onTraining: (
+    action: TrainingAction,
+    volunteerId: number,
+    qualification: TrainingQualification,
+    registerCourses?: boolean,
+  ) => void
+  busy: boolean
 }
 
 let {
@@ -35,9 +49,27 @@ let {
   onFilter,
   onSelect,
   onClearDay,
+  onTraining,
+  busy,
 }: Props = $props()
 
 const people = $derived(filterPeople(board, query, filter, focusDay))
+
+// The bar's normal training is for skjenker, or kokk in the kitchen.
+const normalQualification = $derived<TrainingQualification>(
+  addableKinds(board)[0] === "kokk" ? "kokk" : "skjenker",
+)
+// People who have finished their training shifts and wait for a leader.
+const waiting = $derived(
+  board.people.filter(person => person.training?.some(item => item.ready)),
+)
+// Approving also registers the required courses, unless the leader unticks it.
+let registerCourses = $state(true)
+const QUALIFICATION_WORD: Record<TrainingQualification, string> = {
+  skjenker: "skjenker",
+  kokk: "kokk",
+  skiftleder: "skiftleder",
+}
 
 function meta(person: Person): string {
   const parts: string[] = []
@@ -79,6 +111,16 @@ function meta(person: Person): string {
       >
         Fjern dag
       </button>
+    </p>
+  {/if}
+  {#if waiting.length}
+    <p
+      data-training-waiting
+      class="rounded-base border-2 border-dashed border-warn-yellow bg-card p-2 text-sm"
+    >
+      <strong>Ferdig med opplæringen:</strong>
+      {waiting.map(person => person.name).join(", ")}. Velg personen for å
+      godkjenne eller gi ett skift til.
     </p>
   {/if}
   <label class="flex flex-col gap-1 text-sm">
@@ -127,6 +169,99 @@ function meta(person: Person): string {
         Fjern valg
       </button>
     </p>
+    <section
+      aria-label={`Opplæring, ${selected.name}`}
+      data-training-box
+      class="flex flex-col gap-2 rounded-base border border-border bg-card p-2 text-sm"
+    >
+      <h3 class="font-heading">Opplæring</h3>
+      {#each selected.training ?? [] as item (item.qualification)}
+        <p>
+          {QUALIFICATION_WORD[item.qualification]}: {item.done} av {item.required}
+          skift.
+          {#if item.ready}
+            <strong>Ferdig med skiftene.</strong>
+          {/if}
+        </p>
+        <div class="flex flex-wrap gap-2">
+          {#if item.ready}
+            {#if item.courses_pending?.length}
+              <label class="flex w-full items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  bind:checked={registerCourses}
+                  class="size-5"
+                />
+                Registrer kurset «{item.courses_pending.join("», «")}» som
+                fullført
+              </label>
+            {/if}
+            <button
+              type="button"
+              class={buttonVariants({ size: "sm" })}
+              aria-disabled={busy ? "true" : undefined}
+              onclick={() =>
+                !busy &&
+                onTraining(
+                  "approve",
+                  selected.volunteer_id,
+                  item.qualification,
+                  registerCourses,
+                )}
+            >
+              Godkjenn som {QUALIFICATION_WORD[item.qualification]}
+            </button>
+            <button
+              type="button"
+              class={buttonVariants({ size: "sm", variant: "neutral" })}
+              aria-disabled={busy ? "true" : undefined}
+              onclick={() =>
+                !busy &&
+                onTraining("extend", selected.volunteer_id, item.qualification)}
+            >
+              Ett skift til
+            </button>
+          {/if}
+          <button
+            type="button"
+            class={buttonVariants({ size: "sm", variant: "neutral" })}
+            aria-disabled={busy ? "true" : undefined}
+            onclick={() =>
+              !busy &&
+              onTraining("stop", selected.volunteer_id, item.qualification)}
+          >
+            Ta ut av opplæring
+          </button>
+        </div>
+      {:else}
+        <p class="text-foreground-muted">Ikke i opplæring.</p>
+      {/each}
+      <div class="flex flex-wrap gap-2">
+        {#if !(selected.training ?? []).some(item => item.qualification === normalQualification)}
+          <button
+            type="button"
+            class={buttonVariants({ size: "sm", variant: "neutral" })}
+            aria-disabled={busy ? "true" : undefined}
+            onclick={() =>
+              !busy &&
+              onTraining("start", selected.volunteer_id, normalQualification)}
+          >
+            Sett i opplæring som {QUALIFICATION_WORD[normalQualification]}
+          </button>
+        {/if}
+        {#if !selected.is_skiftleder && !(selected.training ?? []).some(item => item.qualification === "skiftleder")}
+          <button
+            type="button"
+            class={buttonVariants({ size: "sm", variant: "neutral" })}
+            aria-disabled={busy ? "true" : undefined}
+            onclick={() =>
+              !busy && onTraining("start", selected.volunteer_id, "skiftleder")}
+          >
+            Sett i opplæring som skiftleder
+          </button>
+        {/if}
+      </div>
+    </section>
   {/if}
   <ul
     aria-label="Personer"

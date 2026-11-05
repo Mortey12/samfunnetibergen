@@ -46,6 +46,7 @@ import {
   firstName,
   isNeeded,
   isOpen,
+  isoWeekOf,
   longDate,
   type PlaceRef,
   personById,
@@ -311,6 +312,14 @@ function labelFor(op: Op, current: WeekBoard): string {
       return "plass fjernet"
     case "removeMany":
       return "tilbakestilling"
+    case "training":
+      return op.action === "start"
+        ? "opplæring startet"
+        : op.action === "stop"
+          ? "opplæring stoppet"
+          : op.action === "approve"
+            ? "godkjenning"
+            : "ekstra opplæringsskift"
   }
 }
 
@@ -389,6 +398,7 @@ function targetSlot(op: Op): number | null {
     case "addPlace":
     case "removePlace":
     case "removeMany":
+    case "training":
       return null
   }
 }
@@ -1013,6 +1023,15 @@ function problemTitle(refs: PlaceRef[]): string {
                 bind:query
                 onClearDay={() => (focusDay = null)}
                 onFilter={value => (filter = value)}
+                onTraining={(action, volunteerId, qualification, registerCourses) =>
+                  doOp({
+                    type: "training",
+                    action,
+                    volunteerId,
+                    qualification,
+                    registerCourses,
+                  })}
+                busy={busy}
                 onSelect={person => {
                   selectedId = person?.volunteer_id ?? null
                   focusDay = null
@@ -1106,6 +1125,10 @@ function problemTitle(refs: PlaceRef[]): string {
         <CsvRangeDialog
           open={csvRangeOpen}
           fromWeek={board.week_number}
+          rangeText={weeks =>
+            weeks === 1
+              ? `uke ${board?.week_number}`
+              : `uke ${board?.week_number} til ${isoWeekOf(addDays(board?.week_start ?? weekStart, 7 * (weeks - 1)))}`}
           maxWeeks={maxCsvWeeks}
           download={downloadCsvRange}
           onClose={() => (csvRangeOpen = false)}

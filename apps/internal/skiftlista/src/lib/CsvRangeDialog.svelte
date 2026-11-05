@@ -12,6 +12,8 @@ interface Props {
   open: boolean
   /** Number of the week on screen, for the wording. */
   fromWeek: number
+  /** "uke 49 til 50" for the first n weeks from the one on screen. */
+  rangeText: (weeks: number) => string
   /** How many weeks can be asked for at most. */
   maxWeeks: number
   /** Reads and saves the weeks; rejects with a reason in Norwegian. */
@@ -19,7 +21,7 @@ interface Props {
   onClose: () => void
 }
 
-let { open, fromWeek, maxWeeks, download, onClose }: Props = $props()
+let { open, fromWeek, rangeText, maxWeeks, download, onClose }: Props = $props()
 
 const CHOICES = [2, 3, 4, 6, 8, 12]
 const choices = $derived(CHOICES.filter(n => n <= maxWeeks))
@@ -67,8 +69,9 @@ async function submit(event: Event) {
     >
       <Dialog.Title class="text-xl font-heading">Last ned flere uker</Dialog.Title>
       <Dialog.Description class="text-sm">
-        Lager én CSV-fil med én rad per plass, fra og med uke {fromWeek}. Uker
-        som ikke er publisert tas med, og kolonnen «Ukestatus» sier det.
+        Lager én CSV-fil med én rad per plass, fra uka du ser på (uke {fromWeek})
+        og så mange uker framover som du velger. Uker som ikke er publisert tas
+        med, og kolonnen «Ukestatus» sier det.
       </Dialog.Description>
       <form class="flex flex-col gap-3" onsubmit={submit}>
         <label class="flex flex-col gap-1 text-sm">
@@ -78,7 +81,7 @@ async function submit(event: Event) {
             class="rounded-base border-2 border-border bg-card p-2 text-base"
           >
             {#each choices as n (n)}
-              <option value={n}>{n} uker</option>
+              <option value={n}>{n} uker: {rangeText(n)}</option>
             {/each}
           </select>
         </label>

@@ -15,10 +15,13 @@ import {
   type LeaderMe,
   type Note,
   type Person,
+  type PersonTraining,
   type Place,
   type PlaceKind,
   RefusedError,
   type Shift,
+  type TrainingAction,
+  type TrainingQualification,
   type WeekBoard,
   type WeekStatus,
   type WriteResult,
@@ -235,6 +238,14 @@ interface Store {
   status: Map<string, WeekStatus>
   version: Map<string, number>
   changed: Map<string, { by: string; at: string }>
+  /** People in training (kept on the person); `done` stands in for finished shifts. */
+  trainees: {
+    volunteer_id: number
+    qualification: TrainingQualification
+    done: number
+    required: number
+    courseDone?: boolean
+  }[]
   nextId: number
 }
 
@@ -263,6 +274,7 @@ export function createStore(): Store {
     status: new Map(),
     version: new Map(),
     changed: new Map(),
+    trainees: [],
     nextId: 1000,
   }
   let personId = 100
@@ -384,17 +396,32 @@ function seedPlacements(store: Store) {
     place => place.assignment && place.kind === "skjenker",
   )
   if (sick?.assignment) sick.assignment.cannot_attend = true
-  // One person in training, so "Opplæring 2/3" can be seen on the place.
-  const trainee = store.shifts
+  // Two people in training, kept on the person: one half way, one done and waiting for approval.
+  const standing = store.shifts
     .filter(shift => shift.bar_id === 11)
     .flatMap(shift => shift.places)
-    .find(
+    .filter(
       place =>
         place.kind === "skjenker" &&
         place.assignment &&
         !place.assignment.cannot_attend,
     )
-  if (trainee?.assignment) trainee.assignment.training = "opplæring 2/3"
+    .map(place => place.assignment?.volunteer_id)
+  const [halfWay, finished] = [...new Set(standing)]
+  if (halfWay)
+    store.trainees.push({
+      volunteer_id: halfWay,
+      qualification: "skjenker",
+      done: 1,
+      required: 3,
+    })
+  if (finished)
+    store.trainees.push({
+      volunteer_id: finished,
+      qualification: "skjenker",
+      done: 3,
+      required: 3,
+    })
   seedSuggestions(store)
 }
 
@@ -550,6 +577,37 @@ function statusFor(store: Store, barId: number, weekStart: string): WeekStatus {
   return store.status.get(weekKey(barId, weekStart)) ?? "open"
 }
 
+/** "opplæring 2/3" on a trainee's place: the next training shift after the ones done. */
+function placeTraining(store: Store, volunteerId: number): string | null {
+  const item = store.trainees.find(entry => entry.volunteer_id === volunteerId)
+  return item
+    ? `opplæring ${Math.min(item.done + 1, item.required)}/${item.required}`
+    : null
+}
+
+/** The course of a qualification: approving a finished training registers this one only. */
+function courseOf(qualification: TrainingQualification): string {
+  return qualification === "kokk"
+    ? "Kokkekurs"
+    : qualification === "skiftleder"
+      ? "Skiftlederkurs"
+      : "Skjenkekurs"
+}
+
+function trainingOf(store: Store, volunteerId: number): PersonTraining[] {
+  return store.trainees
+    .filter(item => item.volunteer_id === volunteerId)
+    .map(item => ({
+      qualification: item.qualification,
+      kind: item.qualification === "skiftleder" ? "skiftleder" : "normal",
+      done: item.done,
+      required: item.required,
+      ready: item.done >= item.required,
+      text: `opplæring ${Math.min(item.done, item.required)}/${item.required}`,
+      courses_pending: item.courseDone ? [] : [courseOf(item.qualification)],
+    }))
+}
+
 export function buildBoard(
   store: Store,
   barId: number,
@@ -583,6 +641,7 @@ export function buildBoard(
       assignment: place.assignment
         ? {
             ...place.assignment,
+            training: placeTraining(store, place.assignment.volunteer_id),
             problems: problemsFor(
               store,
               shift,
@@ -641,7 +700,11 @@ export function buildBoard(
       busy_days: [...busy].sort(),
       note: person.volunteer_id % 7 === 0 ? "Eksamen torsdag" : null,
       max_shifts: person.volunteer_id % 5 === 0 ? 1 : null,
-      tags: person.volunteer_id % 11 === 0 ? ["avtalt 1/mnd"] : [],
+      tags: [
+        ...(person.volunteer_id % 11 === 0 ? ["avtalt 1/mnd"] : []),
+        ...trainingOf(store, person.volunteer_id).map(item => item.text),
+      ],
+      training: trainingOf(store, person.volunteer_id),
     }
   })
 
@@ -1090,6 +1153,71 @@ export function createFakeApi(
         count
           ? `Forkastet ${count} forslag.`
           : "Ingen endring. Det er ingen forslag å forkaste.",
+      )
+    },
+    async training(
+      board,
+      action: TrainingAction,
+      volunteerId,
+      qualification,
+      registerCourses = true,
+    ) {
+      await wait()
+      requireFresh(store, board)
+      const who = person(store, volunteerId)
+      const index = store.trainees.findIndex(
+        item =>
+          item.volunteer_id === volunteerId &&
+          item.qualification === qualification,
+      )
+      const item = store.trainees[index]
+      if (action === "start") {
+        if (item || (qualification === "skiftleder" && who.is_skiftleder))
+          throw new RefusedError(
+            `${who.name} er allerede i opplæring eller godkjent som ${qualification}.`,
+          )
+        store.trainees.push({
+          volunteer_id: volunteerId,
+          qualification,
+          done: 0,
+          required: 3,
+        })
+        touch(store, board)
+        return result(
+          board,
+          `${who.name} er satt i opplæring som ${qualification}.`,
+        )
+      }
+      if (!item) throw new RefusedError("Personen er ikke i opplæring her.")
+      if (action === "stop") {
+        store.trainees.splice(index, 1)
+        touch(store, board)
+        return result(board, `${who.name} er tatt ut av opplæringen.`)
+      }
+      if (item.done < item.required)
+        throw new RefusedError(
+          action === "approve"
+            ? `${who.name} har bare ${item.done} av ${item.required} skift. Vent til opplæringen er ferdig.`
+            : `${who.name} er ikke ferdig med skiftene sine ennå.`,
+        )
+      if (action === "approve") {
+        store.trainees.splice(index, 1)
+        if (qualification === "skiftleder") who.is_skiftleder = true
+        touch(store, board)
+        return result(
+          board,
+          `${who.name} er godkjent som ${qualification}.${
+            registerCourses && !item.courseDone
+              ? ` Kurs registrert som fullført: ${courseOf(qualification)}.`
+              : ""
+          }`,
+        )
+      }
+      item.required += 1
+      touch(store, board)
+      return result(
+        board,
+        `${who.name} fikk ett skift til i opplæringen (${item.required} i alt).`,
       )
     },
     async copyPreviousWeek(board) {

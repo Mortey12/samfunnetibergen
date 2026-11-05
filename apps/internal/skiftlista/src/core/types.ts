@@ -91,6 +91,24 @@ export interface Shift {
   answers: Record<string, Answer>
 }
 
+/** Training is kept on the person (not on a kind of place) and counted from finished shifts. */
+export type TrainingQualification = "skjenker" | "kokk" | "skiftleder"
+export type TrainingAction = "start" | "approve" | "extend" | "stop"
+
+export interface PersonTraining {
+  qualification: TrainingQualification
+  /** "normal" for skjenker or kokk, "skiftleder" for skiftleder training. */
+  kind: "normal" | "skiftleder"
+  done: number
+  required: number
+  /** Enough shifts are done: a leader approves, or gives one more shift. */
+  ready: boolean
+  /** "opplæring 2/3". */
+  text: string
+  /** Required courses the person has not completed; approving can register them. */
+  courses_pending?: string[]
+}
+
 export interface Person {
   volunteer_id: number
   name: string
@@ -107,6 +125,8 @@ export interface Person {
   max_shifts: number | null
   /** Short server-made tags, e.g. "avtalt 1/mnd", "borte til 30. nov". */
   tags: string[]
+  /** In training in this bar; empty or missing when not. */
+  training?: PersonTraining[]
 }
 
 /** Whether a person fits an open place, and what to warn about. */
@@ -237,6 +257,17 @@ export interface LeaderApi {
    * that reports are not set up) so the leader never thinks it was sent.
    */
   reportProblem(report: ProblemReport): Promise<string>
+  /**
+   * POST /weeks/{week_start}/training/{start|approve|extend|stop}. Approve and
+   * extend are refused until the person has finished their shifts.
+   */
+  training(
+    board: WeekBoard,
+    action: TrainingAction,
+    volunteerId: number,
+    qualification: TrainingQualification,
+    registerCourses?: boolean,
+  ): Promise<WriteResult>
 }
 
 export interface ProblemReport {

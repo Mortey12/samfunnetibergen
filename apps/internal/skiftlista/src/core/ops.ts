@@ -19,6 +19,8 @@ import {
   type Place,
   type PlaceKind,
   RefusedError,
+  type TrainingAction,
+  type TrainingQualification,
   type WeekBoard,
   type WriteResult,
 } from "./types"
@@ -61,6 +63,15 @@ export type Op =
   | { type: "discardSuggestions" }
   /** "Kopier fra forrige uke". Undone with one `removeMany` for everyone it placed. */
   | { type: "copyWeek" }
+  /** Training kept on the person: put in training, approve, one more shift, take out. */
+  | {
+      type: "training"
+      action: TrainingAction
+      volunteerId: number
+      qualification: TrainingQualification
+      /** Only for "approve": also register the required courses as completed. */
+      registerCourses?: boolean
+    }
   /**
    * Takes several people off their places, one write each. Each one is only
    * removed while they still sit where they were put, so a person a leader
@@ -209,6 +220,14 @@ export function inverseOf(
       const items = newlyPlaced(before, after)
       return items.length ? { type: "removeMany", items } : null
     }
+    case "training":
+      // Putting someone in training and taking them out undo each other; approving
+      // and giving one more shift do not.
+      return op.action === "start"
+        ? { ...op, action: "stop" }
+        : op.action === "stop"
+          ? { ...op, action: "start" }
+          : null
     case "status":
     case "suggestWeek":
     case "discardSuggestions":
@@ -259,6 +278,14 @@ export async function run(
       )
     case "status":
       return api.setStatus(board, op.status)
+    case "training":
+      return api.training(
+        board,
+        op.action,
+        op.volunteerId,
+        op.qualification,
+        op.registerCourses,
+      )
     case "removeMany":
       return removeMany(api, board, op.items)
     case "copyWeek":

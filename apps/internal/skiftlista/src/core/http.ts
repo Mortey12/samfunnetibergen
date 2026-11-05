@@ -285,6 +285,15 @@ export function createHttpApi(fetchFn: typeof fetch = fetch): LeaderApi {
       write("POST", `/weeks/${board.week_start}/suggestions/discard`, board, {
         week: false,
       }),
+    training: (board, action, volunteerId, qualification, registerCourses) =>
+      write("POST", `/weeks/${board.week_start}/training/${action}`, board, {
+        body: {
+          volunteer_id: volunteerId,
+          qualification,
+          register_courses: registerCourses ?? true,
+        },
+        week: false,
+      }),
     copyPreviousWeek: board =>
       write("POST", `/weeks/${board.week_start}/copy-previous`, board, {
         week: false,
