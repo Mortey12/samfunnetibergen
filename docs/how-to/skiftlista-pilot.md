@@ -226,6 +226,8 @@ påminnelser, kurs) vurderes først etter en «behold» eller «endre».
    spør man leder for Stjerne. (Claude: jeg leser det slik at leder for Stjerne
    gjennomgår listen over skiftledere fra kopieringsskriptet før start. Dette
    er ikke et svar fra personvernansvarlig.)
+   Kvalifikasjoner lagres for alltid, også for folk som har sluttet
+   (svar fra utvikleren, 2026-11-05).
 8. **Fast adresse og Vercel-prosjekt:** Leder for e-tjenesten gjør det.
 
 ## Åpne spørsmål
